@@ -1032,4 +1032,4 @@ async def on_command_error(ctx, error):
 # INICIAR
 # =========================================================
 
-bot.run("TOKEN")
+bot.run(TOKEN)
