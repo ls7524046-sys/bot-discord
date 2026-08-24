@@ -28,7 +28,7 @@ bot = commands.Bot(
 cl_ativo = {}
 cl_cooldown = {}
 
-# 10 minutos em segundos
+# 10 minutos
 CL_COOLDOWN = 600
 
 
@@ -517,7 +517,10 @@ async def embed_command(ctx):
 # =========================================================
 
 @bot.command(name="av")
-async def avatar(ctx, membro: discord.Member = None):
+async def avatar(
+    ctx,
+    membro: discord.Member = None
+):
 
     membro = membro or ctx.author
 
@@ -530,7 +533,9 @@ async def avatar(ctx, membro: discord.Member = None):
         url=membro.display_avatar.url
     )
 
-    await ctx.send(embed=embed)
+    await ctx.send(
+        embed=embed
+    )
 
 
 # =========================================================
@@ -538,16 +543,22 @@ async def avatar(ctx, membro: discord.Member = None):
 # =========================================================
 
 @bot.command(name="bn")
-async def banner(ctx, membro: discord.Member = None):
+async def banner(
+    ctx,
+    membro: discord.Member = None
+):
 
     membro = membro or ctx.author
 
-    usuario = await bot.fetch_user(membro.id)
+    usuario = await bot.fetch_user(
+        membro.id
+    )
 
     if usuario.banner is None:
 
         await ctx.send(
-            f"❌ **{membro.display_name}** não possui um banner."
+            f"❌ **{membro.display_name}** "
+            "não possui um banner."
         )
 
         return
@@ -561,7 +572,9 @@ async def banner(ctx, membro: discord.Member = None):
         url=usuario.banner.url
     )
 
-    await ctx.send(embed=embed)
+    await ctx.send(
+        embed=embed
+    )
 
 
 # =========================================================
@@ -606,7 +619,9 @@ async def informacoes_usuario(
         inline=False
     )
 
-    await ctx.send(embed=embed)
+    await ctx.send(
+        embed=embed
+    )
 
 
 # =========================================================
@@ -647,7 +662,9 @@ async def informacoes_servidor(ctx):
         inline=True
     )
 
-    await ctx.send(embed=embed)
+    await ctx.send(
+        embed=embed
+    )
 
 
 # =========================================================
@@ -657,7 +674,9 @@ async def informacoes_servidor(ctx):
 @bot.command(name="ping")
 async def ping(ctx):
 
-    latencia = round(bot.latency * 1000)
+    latencia = round(
+        bot.latency * 1000
+    )
 
     embed = discord.Embed(
         title="🏓 Pong!",
@@ -665,7 +684,9 @@ async def ping(ctx):
         color=discord.Color.green()
     )
 
-    await ctx.send(embed=embed)
+    await ctx.send(
+        embed=embed
+    )
 
 
 # =========================================================
@@ -680,9 +701,9 @@ async def limpar_mensagens(
 
     usuario_id = ctx.author.id
 
-    # =====================================================
-    # VERIFICA PERMISSÃO DO BOT
-    # =====================================================
+    # -----------------------------------------------------
+    # PERMISSÃO DO BOT
+    # -----------------------------------------------------
 
     if not ctx.channel.permissions_for(
         ctx.guild.me
@@ -695,9 +716,9 @@ async def limpar_mensagens(
 
         return
 
-    # =====================================================
-    # VERIFICA QUANTIDADE
-    # =====================================================
+    # -----------------------------------------------------
+    # LIMITE DE MENSAGENS
+    # -----------------------------------------------------
 
     if quantidade < 1 or quantidade > 10:
 
@@ -705,28 +726,40 @@ async def limpar_mensagens(
             "❌ Você pode apagar de **1 até 10 mensagens** por vez."
         )
 
-        await aviso.delete(delay=5)
+        await aviso.delete(
+            delay=5
+        )
 
         return
 
-    # =====================================================
-    # VERIFICA COOLDOWN
-    # =====================================================
+    # -----------------------------------------------------
+    # COOLDOWN
+    # -----------------------------------------------------
 
     agora = asyncio.get_running_loop().time()
 
     if usuario_id in cl_cooldown:
 
-        restante = cl_cooldown[usuario_id] - agora
+        restante = (
+            cl_cooldown[usuario_id] - agora
+        )
 
         if restante > 0:
 
-            minutos = int(restante // 60)
-            segundos = int(restante % 60)
+            minutos = int(
+                restante // 60
+            )
+
+            segundos = int(
+                restante % 60
+            )
 
             if minutos > 0:
 
-                tempo = f"{minutos}min {segundos}s"
+                tempo = (
+                    f"{minutos}min "
+                    f"{segundos}s"
+                )
 
             else:
 
@@ -738,7 +771,9 @@ async def limpar_mensagens(
                 f"**{tempo}**."
             )
 
-            await aviso.delete(delay=5)
+            await aviso.delete(
+                delay=5
+            )
 
             return
 
@@ -747,24 +782,25 @@ async def limpar_mensagens(
             None
         )
 
-    # =====================================================
-    # VERIFICA SE JÁ TEM UM CL RODANDO
-    # =====================================================
+    # -----------------------------------------------------
+    # CL JÁ EM ANDAMENTO
+    # -----------------------------------------------------
 
-    if cl_ativo.get(usuario_id, False):
+    if cl_ativo.get(
+        usuario_id,
+        False
+    ):
 
         aviso = await ctx.send(
             "⚠️ Você já possui um **CL** em andamento.\n"
             "Use `.cc` para cancelar."
         )
 
-        await aviso.delete(delay=5)
+        await aviso.delete(
+            delay=5
+        )
 
         return
-
-    # =====================================================
-    # ATIVA O CL
-    # =====================================================
 
     cl_ativo[usuario_id] = True
 
@@ -772,9 +808,9 @@ async def limpar_mensagens(
 
     try:
 
-        # =================================================
-        # PROCURA AS MENSAGENS DO USUÁRIO
-        # =================================================
+        # -------------------------------------------------
+        # PROCURA AS MENSAGENS
+        # -------------------------------------------------
 
         async for mensagem in ctx.channel.history(
             limit=None
@@ -795,9 +831,9 @@ async def limpar_mensagens(
                 if len(mensagens) >= quantidade:
                     break
 
-        # =================================================
+        # -------------------------------------------------
         # NENHUMA MENSAGEM
-        # =================================================
+        # -------------------------------------------------
 
         if not mensagens:
 
@@ -813,9 +849,9 @@ async def limpar_mensagens(
 
         apagadas = 0
 
-        # =================================================
+        # -------------------------------------------------
         # APAGA AS MENSAGENS
-        # =================================================
+        # -------------------------------------------------
 
         for mensagem in mensagens:
 
@@ -831,8 +867,10 @@ async def limpar_mensagens(
 
                 apagadas += 1
 
-                # Intervalo para evitar rate limit
-                await asyncio.sleep(0.8)
+                # Evita rate limit
+                await asyncio.sleep(
+                    0.8
+                )
 
             except discord.NotFound:
 
@@ -853,10 +891,6 @@ async def limpar_mensagens(
 
             except discord.HTTPException as erro:
 
-                # =================================================
-                # RATE LIMIT
-                # =================================================
-
                 if erro.status == 429:
 
                     await asyncio.sleep(
@@ -873,9 +907,9 @@ async def limpar_mensagens(
 
                         pass
 
-        # =================================================
+        # -------------------------------------------------
         # CANCELADO
-        # =================================================
+        # -------------------------------------------------
 
         if not cl_ativo.get(
             usuario_id,
@@ -893,9 +927,9 @@ async def limpar_mensagens(
 
             return
 
-        # =================================================
+        # -------------------------------------------------
         # CONCLUÍDO
-        # =================================================
+        # -------------------------------------------------
 
         aviso = await ctx.send(
             f"🧹 **CL concluído!**\n"
@@ -906,9 +940,9 @@ async def limpar_mensagens(
             delay=5
         )
 
-        # =================================================
-        # COOLDOWN DE 10 MINUTOS
-        # =================================================
+        # -------------------------------------------------
+        # ATIVA COOLDOWN DE 10 MINUTOS
+        # -------------------------------------------------
 
         cl_cooldown[usuario_id] = (
             asyncio.get_running_loop().time()
@@ -1072,10 +1106,30 @@ async def bola_8(
 )
 async def adicionar_emoji(
     ctx,
-    emoji: discord.PartialEmoji
+    emoji: discord.PartialEmoji = None
 ):
 
-    if not ctx.guild:
+    # -----------------------------------------------------
+    # VERIFICA SE FOI ENVIADO UM EMOJI
+    # -----------------------------------------------------
+
+    if emoji is None:
+
+        await ctx.send(
+            "❌ Você precisa informar um emoji personalizado.\n\n"
+            "**Exemplo:**\n"
+            "`.addemoji <:emoji:123456789>`\n\n"
+            "Ou, para emoji animado:\n"
+            "`.addemoji <a:emoji:123456789>`"
+        )
+
+        return
+
+    # -----------------------------------------------------
+    # VERIFICA SERVIDOR
+    # -----------------------------------------------------
+
+    if ctx.guild is None:
 
         await ctx.send(
             "❌ Este comando só pode ser usado "
@@ -1084,14 +1138,26 @@ async def adicionar_emoji(
 
         return
 
-    if not emoji.is_custom_emoji():
+    # -----------------------------------------------------
+    # VERIFICA PERMISSÃO DO BOT
+    # -----------------------------------------------------
+
+    permissoes = ctx.channel.permissions_for(
+        ctx.guild.me
+    )
+
+    if not permissoes.manage_emojis:
 
         await ctx.send(
-            "❌ Você precisa enviar um "
-            "**emoji personalizado**."
+            "❌ Eu não tenho a permissão "
+            "**Gerenciar Expressões** neste servidor."
         )
 
         return
+
+    # -----------------------------------------------------
+    # ADICIONA O EMOJI
+    # -----------------------------------------------------
 
     try:
 
@@ -1099,13 +1165,14 @@ async def adicionar_emoji(
 
         novo_emoji = await ctx.guild.create_custom_emoji(
             name=emoji.name,
-            image=imagem
+            image=imagem,
+            reason=f"Adicionado por {ctx.author}"
         )
 
         await ctx.send(
-            f"✅ Emoji **{novo_emoji.name}** "
-            f"adicionado com sucesso!\n"
-            f"{novo_emoji}"
+            f"✅ **Emoji adicionado com sucesso!**\n\n"
+            f"Nome: `{novo_emoji.name}`\n"
+            f"Emoji: {novo_emoji}"
         )
 
     except discord.Forbidden:
@@ -1120,6 +1187,16 @@ async def adicionar_emoji(
         await ctx.send(
             "❌ Não foi possível adicionar o emoji.\n"
             f"Erro: `{erro}`"
+        )
+
+    except Exception as erro:
+
+        print(
+            f"⚠️ Erro ao adicionar emoji: {erro}"
+        )
+
+        await ctx.send(
+            "❌ Ocorreu um erro ao tentar adicionar o emoji."
         )
 
 
@@ -1208,7 +1285,7 @@ async def ajuda(ctx):
 
 
 # =========================================================
-# ERROS
+# TRATAMENTO DE ERROS
 # =========================================================
 
 @bot.event
@@ -1217,12 +1294,14 @@ async def on_command_error(
     error
 ):
 
+    # Comando inexistente
     if isinstance(
         error,
         commands.CommandNotFound
     ):
         return
 
+    # Sem permissão para o usuário
     if isinstance(
         error,
         commands.MissingPermissions
@@ -1235,6 +1314,7 @@ async def on_command_error(
 
         return
 
+    # Bot sem permissão
     if isinstance(
         error,
         commands.BotMissingPermissions
@@ -1246,6 +1326,7 @@ async def on_command_error(
 
         return
 
+    # Usuário não encontrado
     if isinstance(
         error,
         commands.MemberNotFound
@@ -1257,6 +1338,26 @@ async def on_command_error(
 
         return
 
+    # =====================================================
+    # ADDEMOJI SEM ARGUMENTO
+    # =====================================================
+
+    if isinstance(
+        error,
+        commands.MissingRequiredArgument
+    ):
+
+        if error.param.name == "emoji":
+
+            await ctx.send(
+                "❌ Você precisa informar um emoji.\n\n"
+                "**Exemplo:**\n"
+                "`.addemoji <:emoji:123456789>`"
+            )
+
+            return
+
+    # Argumento inválido
     if isinstance(
         error,
         commands.BadArgument
@@ -1269,13 +1370,14 @@ async def on_command_error(
 
         return
 
+    # Outros erros
     print(
         f"⚠️ Erro: {error}"
     )
 
 
 # =========================================================
-# INICIAR
+# INICIAR BOT
 # =========================================================
 
 bot.run(TOKEN)
