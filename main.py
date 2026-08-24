@@ -1,5 +1,6 @@
 import discord
 import random
+import asyncio
 from discord.ext import commands
 import os
 
@@ -664,6 +665,7 @@ async def ping(ctx):
 # =========================================================
 
 @bot.command(name="cl")
+@commands.has_permissions(manage_messages=True)
 async def limpar_mensagens(
     ctx,
     quantidade: int = 5
@@ -671,22 +673,18 @@ async def limpar_mensagens(
 
     usuario_id = ctx.author.id
 
-    if quantidade < 1:
+    # Limite de segurança
+    if quantidade < 1 or quantidade > 10:
 
-        await ctx.send(
-            "❌ A quantidade precisa ser de **1 a 10**."
+        aviso = await ctx.send(
+            "❌ A quantidade precisa estar entre **1 e 10**."
         )
+
+        await aviso.delete(delay=5)
 
         return
 
-    if quantidade > 10:
-
-        await ctx.send(
-            "❌ O limite máximo do `.cl` é **10 mensagens**."
-        )
-
-        return
-
+    # Verifica se já existe um CL
     if cl_ativo.get(usuario_id, False):
 
         aviso = await ctx.send(
@@ -704,6 +702,7 @@ async def limpar_mensagens(
 
     try:
 
+        # Procura as mensagens do usuário
         async for mensagem in ctx.channel.history(
             limit=None
         ):
@@ -730,6 +729,10 @@ async def limpar_mensagens(
 
         apagadas = 0
 
+        # =================================================
+        # EXCLUSÃO COM INTERVALO PARA EVITAR RATE LIMIT
+        # =================================================
+
         for mensagem in mensagens:
 
             if not cl_ativo.get(usuario_id, False):
@@ -741,25 +744,51 @@ async def limpar_mensagens(
 
                 apagadas += 1
 
+                # Pequeno intervalo entre exclusões
+                await asyncio.sleep(0.8)
+
             except discord.NotFound:
+
                 pass
 
             except discord.Forbidden:
 
-                await ctx.send(
+                aviso = await ctx.send(
                     "❌ Não tenho permissão para apagar mensagens."
                 )
 
+                await aviso.delete(delay=5)
+
                 return
 
-            except discord.HTTPException:
-                pass
+            except discord.HTTPException as erro:
 
+                # Se o Discord aplicar rate limit,
+                # espera antes de continuar
+                if erro.status == 429:
+
+                    await asyncio.sleep(2)
+
+                    try:
+
+                        await mensagem.delete()
+
+                        apagadas += 1
+
+                    except discord.HTTPException:
+
+                        pass
+
+                else:
+
+                    pass
+
+        # Verifica cancelamento
         if not cl_ativo.get(usuario_id, False):
 
             aviso = await ctx.send(
                 f"🛑 **CL cancelado!**\n"
-                f"{apagadas} mensagens foram apagadas."
+                f"**{apagadas}** mensagens foram apagadas."
             )
 
             await aviso.delete(delay=5)
