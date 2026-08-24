@@ -1,19 +1,24 @@
 import discord
 import random
 import asyncio
-from discord.ext import commands
 import os
 
-TOKEN = os.environ.get("DISCORD_TOKEN")
-PREFIXO = "."
+from discord.ext import commands
+
 
 # =========================================================
 # CONFIGURAÇÕES
 # =========================================================
 
+TOKEN = os.environ.get("DISCORD_TOKEN")
+PREFIXO = "."
+
+
 intents = discord.Intents.default()
+
 intents.message_content = True
 intents.members = True
+
 
 bot = commands.Bot(
     command_prefix=PREFIXO,
@@ -21,11 +26,15 @@ bot = commands.Bot(
     help_command=None
 )
 
+
 # =========================================================
 # CONFIGURAÇÕES DO CL
 # =========================================================
 
+# Usuários que estão executando um CL
 cl_ativo = {}
+
+# Cooldown individual de cada usuário
 cl_cooldown = {}
 
 # 10 minutos
@@ -57,6 +66,7 @@ class EmbedEditorView(discord.ui.View):
         super().__init__(timeout=600)
 
         self.autor = autor
+
         self.titulo = ""
         self.descricao = ""
         self.imagem = ""
@@ -140,6 +150,10 @@ class EmbedEditorView(discord.ui.View):
 
         return embed
 
+    # -----------------------------------------------------
+    # TÍTULO
+    # -----------------------------------------------------
+
     @discord.ui.button(
         label="Título",
         emoji="✏️",
@@ -154,6 +168,10 @@ class EmbedEditorView(discord.ui.View):
         await interaction.response.send_modal(
             TituloModal(self)
         )
+
+    # -----------------------------------------------------
+    # DESCRIÇÃO
+    # -----------------------------------------------------
 
     @discord.ui.button(
         label="Descrição",
@@ -170,6 +188,10 @@ class EmbedEditorView(discord.ui.View):
             DescricaoModal(self)
         )
 
+    # -----------------------------------------------------
+    # IMAGEM
+    # -----------------------------------------------------
+
     @discord.ui.button(
         label="Imagem",
         emoji="🖼️",
@@ -184,6 +206,10 @@ class EmbedEditorView(discord.ui.View):
         await interaction.response.send_modal(
             ImagemModal(self)
         )
+
+    # -----------------------------------------------------
+    # THUMBNAIL
+    # -----------------------------------------------------
 
     @discord.ui.button(
         label="Thumbnail",
@@ -200,6 +226,10 @@ class EmbedEditorView(discord.ui.View):
             ThumbnailModal(self)
         )
 
+    # -----------------------------------------------------
+    # COR
+    # -----------------------------------------------------
+
     @discord.ui.button(
         label="Cor",
         emoji="🎨",
@@ -215,6 +245,10 @@ class EmbedEditorView(discord.ui.View):
             CorModal(self)
         )
 
+    # -----------------------------------------------------
+    # RODAPÉ
+    # -----------------------------------------------------
+
     @discord.ui.button(
         label="Rodapé",
         emoji="👣",
@@ -229,6 +263,10 @@ class EmbedEditorView(discord.ui.View):
         await interaction.response.send_modal(
             RodapeModal(self)
         )
+
+    # -----------------------------------------------------
+    # PRÉ-VISUALIZAR
+    # -----------------------------------------------------
 
     @discord.ui.button(
         label="Pré-visualizar",
@@ -254,6 +292,10 @@ class EmbedEditorView(discord.ui.View):
             embed=embed,
             ephemeral=True
         )
+
+    # -----------------------------------------------------
+    # ENVIAR
+    # -----------------------------------------------------
 
     @discord.ui.button(
         label="ENVIAR",
@@ -287,6 +329,10 @@ class EmbedEditorView(discord.ui.View):
 
         self.stop()
 
+    # -----------------------------------------------------
+    # CANCELAR
+    # -----------------------------------------------------
+
     @discord.ui.button(
         label="CANCELAR",
         emoji="🗑️",
@@ -308,14 +354,16 @@ class EmbedEditorView(discord.ui.View):
 
 
 # =========================================================
-# MODAIS
+# MODAL - TÍTULO
 # =========================================================
 
 class TituloModal(discord.ui.Modal):
 
     def __init__(self, editor):
 
-        super().__init__(title="✏️ Editar Título")
+        super().__init__(
+            title="✏️ Editar Título"
+        )
 
         self.editor = editor
 
@@ -339,11 +387,17 @@ class TituloModal(discord.ui.Modal):
         )
 
 
+# =========================================================
+# MODAL - DESCRIÇÃO
+# =========================================================
+
 class DescricaoModal(discord.ui.Modal):
 
     def __init__(self, editor):
 
-        super().__init__(title="📝 Editar Descrição")
+        super().__init__(
+            title="📝 Editar Descrição"
+        )
 
         self.editor = editor
 
@@ -368,11 +422,17 @@ class DescricaoModal(discord.ui.Modal):
         )
 
 
+# =========================================================
+# MODAL - IMAGEM
+# =========================================================
+
 class ImagemModal(discord.ui.Modal):
 
     def __init__(self, editor):
 
-        super().__init__(title="🖼️ Imagem")
+        super().__init__(
+            title="🖼️ Imagem"
+        )
 
         self.editor = editor
 
@@ -395,11 +455,17 @@ class ImagemModal(discord.ui.Modal):
         )
 
 
+# =========================================================
+# MODAL - THUMBNAIL
+# =========================================================
+
 class ThumbnailModal(discord.ui.Modal):
 
     def __init__(self, editor):
 
-        super().__init__(title="🔹 Thumbnail")
+        super().__init__(
+            title="🔹 Thumbnail"
+        )
 
         self.editor = editor
 
@@ -422,11 +488,17 @@ class ThumbnailModal(discord.ui.Modal):
         )
 
 
+# =========================================================
+# MODAL - COR
+# =========================================================
+
 class CorModal(discord.ui.Modal):
 
     def __init__(self, editor):
 
-        super().__init__(title="🎨 Cor")
+        super().__init__(
+            title="🎨 Cor"
+        )
 
         self.editor = editor
 
@@ -442,16 +514,24 @@ class CorModal(discord.ui.Modal):
 
     async def on_submit(self, interaction):
 
-        valor = self.campo.value.strip().replace("#", "")
+        valor = self.campo.value.strip().replace(
+            "#",
+            ""
+        )
 
         try:
 
-            numero = int(valor, 16)
+            numero = int(
+                valor,
+                16
+            )
 
             if numero > 0xFFFFFF:
                 raise ValueError
 
-            self.editor.cor = discord.Color(numero)
+            self.editor.cor = discord.Color(
+                numero
+            )
 
         except ValueError:
 
@@ -468,11 +548,17 @@ class CorModal(discord.ui.Modal):
         )
 
 
+# =========================================================
+# MODAL - RODAPÉ
+# =========================================================
+
 class RodapeModal(discord.ui.Modal):
 
     def __init__(self, editor):
 
-        super().__init__(title="👣 Rodapé")
+        super().__init__(
+            title="👣 Rodapé"
+        )
 
         self.editor = editor
 
@@ -501,10 +587,14 @@ class RodapeModal(discord.ui.Modal):
 # =========================================================
 
 @bot.command(name="embed")
-@commands.has_permissions(manage_messages=True)
+@commands.has_permissions(
+    manage_messages=True
+)
 async def embed_command(ctx):
 
-    view = EmbedEditorView(ctx.author)
+    view = EmbedEditorView(
+        ctx.author
+    )
 
     await ctx.send(
         embed=view.criar_painel(),
@@ -646,19 +736,25 @@ async def informacoes_servidor(ctx):
 
     embed.add_field(
         name="👥 Membros",
-        value=str(servidor.member_count),
+        value=str(
+            servidor.member_count
+        ),
         inline=True
     )
 
     embed.add_field(
         name="💬 Canais",
-        value=str(len(servidor.channels)),
+        value=str(
+            len(servidor.channels)
+        ),
         inline=True
     )
 
     embed.add_field(
         name="🎭 Cargos",
-        value=str(len(servidor.roles)),
+        value=str(
+            len(servidor.roles)
+        ),
         inline=True
     )
 
@@ -702,38 +798,36 @@ async def limpar_mensagens(
     usuario_id = ctx.author.id
 
     # -----------------------------------------------------
-    # PERMISSÃO DO BOT
+    # VERIFICA PERMISSÃO DO BOT
     # -----------------------------------------------------
 
-    if not ctx.channel.permissions_for(
+    permissoes = ctx.channel.permissions_for(
         ctx.guild.me
-    ).manage_messages:
+    )
+
+    if not permissoes.manage_messages:
 
         await ctx.send(
-            "❌ Eu não tenho a permissão "
+            "❌ Eu preciso da permissão "
             "**Gerenciar Mensagens** neste canal."
         )
 
         return
 
     # -----------------------------------------------------
-    # LIMITE DE MENSAGENS
+    # LIMITE DE 1 ATÉ 10
     # -----------------------------------------------------
 
     if quantidade < 1 or quantidade > 10:
 
-        aviso = await ctx.send(
-            "❌ Você pode apagar de **1 até 10 mensagens** por vez."
-        )
-
-        await aviso.delete(
-            delay=5
+        await ctx.send(
+            "❌ Você pode apagar de **1 até 10 mensagens**."
         )
 
         return
 
     # -----------------------------------------------------
-    # COOLDOWN
+    # COOLDOWN INDIVIDUAL
     # -----------------------------------------------------
 
     agora = asyncio.get_running_loop().time()
@@ -741,7 +835,8 @@ async def limpar_mensagens(
     if usuario_id in cl_cooldown:
 
         restante = (
-            cl_cooldown[usuario_id] - agora
+            cl_cooldown[usuario_id]
+            - agora
         )
 
         if restante > 0:
@@ -765,25 +860,21 @@ async def limpar_mensagens(
 
                 tempo = f"{segundos}s"
 
-            aviso = await ctx.send(
-                f"⏳ **Calma, {ctx.author.mention}!**\n\n"
-                f"Você poderá usar o `.cl` novamente em "
-                f"**{tempo}**."
-            )
-
-            await aviso.delete(
-                delay=5
+            await ctx.send(
+                f"⏳ {ctx.author.mention}, aguarde "
+                f"**{tempo}** para usar o `.cl` novamente."
             )
 
             return
 
+        # Cooldown expirou
         cl_cooldown.pop(
             usuario_id,
             None
         )
 
     # -----------------------------------------------------
-    # CL JÁ EM ANDAMENTO
+    # EVITA DOIS CL AO MESMO TEMPO
     # -----------------------------------------------------
 
     if cl_ativo.get(
@@ -791,36 +882,25 @@ async def limpar_mensagens(
         False
     ):
 
-        aviso = await ctx.send(
-            "⚠️ Você já possui um **CL** em andamento.\n"
-            "Use `.cc` para cancelar."
-        )
-
-        await aviso.delete(
-            delay=5
+        await ctx.send(
+            "⚠️ Você já possui um CL em andamento."
         )
 
         return
 
     cl_ativo[usuario_id] = True
 
-    mensagens = []
-
     try:
 
         # -------------------------------------------------
-        # PROCURA AS MENSAGENS
+        # PROCURA AS MENSAGENS DO USUÁRIO
         # -------------------------------------------------
 
-        async for mensagem in ctx.channel.history(
-            limit=None
-        ):
+        mensagens = []
 
-            if not cl_ativo.get(
-                usuario_id,
-                False
-            ):
-                break
+        async for mensagem in ctx.channel.history(
+            limit=100
+        ):
 
             if mensagem.author.id == usuario_id:
 
@@ -837,116 +917,139 @@ async def limpar_mensagens(
 
         if not mensagens:
 
-            aviso = await ctx.send(
-                "❌ Não encontrei suas mensagens neste canal."
-            )
-
-            await aviso.delete(
-                delay=5
+            await ctx.send(
+                "❌ Não encontrei suas mensagens recentes."
             )
 
             return
 
-        apagadas = 0
-
         # -------------------------------------------------
-        # APAGA AS MENSAGENS
+        # GUARDA OS IDs
         # -------------------------------------------------
 
-        for mensagem in mensagens:
+        ids_mensagens = {
+            mensagem.id
+            for mensagem in mensagens
+        }
 
-            if not cl_ativo.get(
-                usuario_id,
-                False
-            ):
-                break
+        # -------------------------------------------------
+        # FILTRO DO PURGE
+        # -----------------------------------------------------
 
-            try:
+        def verificar(mensagem):
 
-                await mensagem.delete()
+            return mensagem.id in ids_mensagens
 
-                apagadas += 1
+        # -------------------------------------------------
+        # PURGE
+        # -------------------------------------------------
 
-                # Evita rate limit
+        try:
+
+            apagadas = await ctx.channel.purge(
+                limit=100,
+                check=verificar,
+                bulk=True
+            )
+
+        except discord.HTTPException as erro:
+
+            # -------------------------------------------------
+            # RATE LIMIT
+            # -------------------------------------------------
+
+            if erro.status == 429:
+
+                retry_after = getattr(
+                    erro,
+                    "retry_after",
+                    2
+                )
+
+                print(
+                    f"⚠️ Rate limit no CL. "
+                    f"Aguardando {retry_after:.2f}s."
+                )
+
                 await asyncio.sleep(
-                    0.8
+                    retry_after
                 )
 
-            except discord.NotFound:
+                try:
 
-                pass
-
-            except discord.Forbidden:
-
-                aviso = await ctx.send(
-                    "❌ Não tenho permissão para apagar "
-                    "mensagens neste canal."
-                )
-
-                await aviso.delete(
-                    delay=5
-                )
-
-                return
-
-            except discord.HTTPException as erro:
-
-                if erro.status == 429:
-
-                    await asyncio.sleep(
-                        2
+                    apagadas = await ctx.channel.purge(
+                        limit=100,
+                        check=verificar,
+                        bulk=True
                     )
 
-                    try:
+                except discord.HTTPException:
 
-                        await mensagem.delete()
+                    await ctx.send(
+                        "⚠️ O Discord aplicou um rate limit. "
+                        "Tente novamente daqui a pouco."
+                    )
 
-                        apagadas += 1
+                    return
 
-                    except discord.HTTPException:
+            else:
 
-                        pass
+                raise
 
         # -------------------------------------------------
-        # CANCELADO
+        # QUANTIDADE APAGADA
         # -------------------------------------------------
 
-        if not cl_ativo.get(
-            usuario_id,
-            False
-        ):
+        total_apagadas = len(
+            apagadas
+        )
 
-            aviso = await ctx.send(
-                f"🛑 **CL cancelado!**\n"
-                f"**{apagadas}** mensagens foram apagadas."
+        # -------------------------------------------------
+        # COOLDOWN
+        # -------------------------------------------------
+
+        if total_apagadas > 0:
+
+            cl_cooldown[usuario_id] = (
+                asyncio.get_running_loop().time()
+                + CL_COOLDOWN
             )
 
-            await aviso.delete(
-                delay=5
-            )
-
-            return
-
         # -------------------------------------------------
-        # CONCLUÍDO
+        # RESULTADO
         # -------------------------------------------------
 
-        aviso = await ctx.send(
+        await ctx.send(
             f"🧹 **CL concluído!**\n"
-            f"**{apagadas}** mensagens foram apagadas."
+            f"**{total_apagadas}** mensagens foram apagadas."
         )
 
-        await aviso.delete(
-            delay=5
+    except discord.Forbidden:
+
+        await ctx.send(
+            "❌ Não tenho permissão para apagar "
+            "mensagens neste canal."
         )
 
-        # -------------------------------------------------
-        # ATIVA COOLDOWN DE 10 MINUTOS
-        # -------------------------------------------------
+    except discord.HTTPException as erro:
 
-        cl_cooldown[usuario_id] = (
-            asyncio.get_running_loop().time()
-            + CL_COOLDOWN
+        print(
+            f"⚠️ Erro HTTP no CL: {erro}"
+        )
+
+        await ctx.send(
+            "❌ Ocorreu um erro do Discord ao "
+            "tentar apagar as mensagens."
+        )
+
+    except Exception as erro:
+
+        print(
+            f"⚠️ Erro no CL: {erro}"
+        )
+
+        await ctx.send(
+            "❌ Ocorreu um erro ao executar o CL."
         )
 
     finally:
@@ -971,24 +1074,16 @@ async def cancelar_cl(ctx):
         False
     ):
 
-        aviso = await ctx.send(
-            "ℹ️ Você não possui nenhum **CL** em andamento."
-        )
-
-        await aviso.delete(
-            delay=5
+        await ctx.send(
+            "ℹ️ Você não possui nenhum CL em andamento."
         )
 
         return
 
     cl_ativo[usuario_id] = False
 
-    aviso = await ctx.send(
+    await ctx.send(
         "🛑 **CL cancelado!**"
-    )
-
-    await aviso.delete(
-        delay=5
     )
 
 
@@ -1110,7 +1205,7 @@ async def adicionar_emoji(
 ):
 
     # -----------------------------------------------------
-    # VERIFICA SE FOI ENVIADO UM EMOJI
+    # SEM EMOJI
     # -----------------------------------------------------
 
     if emoji is None:
@@ -1119,7 +1214,7 @@ async def adicionar_emoji(
             "❌ Você precisa informar um emoji personalizado.\n\n"
             "**Exemplo:**\n"
             "`.addemoji <:emoji:123456789>`\n\n"
-            "Ou, para emoji animado:\n"
+            "Emoji animado:\n"
             "`.addemoji <a:emoji:123456789>`"
         )
 
@@ -1142,9 +1237,7 @@ async def adicionar_emoji(
     # VERIFICA PERMISSÃO DO BOT
     # -----------------------------------------------------
 
-    permissoes = ctx.channel.permissions_for(
-        ctx.guild.me
-    )
+    permissoes = ctx.guild.me.guild_permissions
 
     if not permissoes.manage_emojis:
 
@@ -1184,6 +1277,10 @@ async def adicionar_emoji(
 
     except discord.HTTPException as erro:
 
+        print(
+            f"⚠️ Erro ao adicionar emoji: {erro}"
+        )
+
         await ctx.send(
             "❌ Não foi possível adicionar o emoji.\n"
             f"Erro: `{erro}`"
@@ -1219,8 +1316,7 @@ async def ajuda(ctx):
     embed.add_field(
         name="🎨 EMBEDS",
         value=(
-            "`.embed` — Abre o editor visual "
-            "de Embed com botões."
+            "`.embed` — Abre o editor visual de Embed."
         ),
         inline=False
     )
@@ -1269,8 +1365,7 @@ async def ajuda(ctx):
         name="😀 EMOJIS",
         value=(
             "`.addemoji <:emoji:ID>` — "
-            "Adiciona um emoji personalizado "
-            "de outro servidor."
+            "Adiciona um emoji personalizado."
         ),
         inline=False
     )
@@ -1294,14 +1389,20 @@ async def on_command_error(
     error
 ):
 
-    # Comando inexistente
+    # -----------------------------------------------------
+    # COMANDO NÃO EXISTE
+    # -----------------------------------------------------
+
     if isinstance(
         error,
         commands.CommandNotFound
     ):
         return
 
-    # Sem permissão para o usuário
+    # -----------------------------------------------------
+    # USUÁRIO SEM PERMISSÃO
+    # -----------------------------------------------------
+
     if isinstance(
         error,
         commands.MissingPermissions
@@ -1314,7 +1415,10 @@ async def on_command_error(
 
         return
 
-    # Bot sem permissão
+    # -----------------------------------------------------
+    # BOT SEM PERMISSÃO
+    # -----------------------------------------------------
+
     if isinstance(
         error,
         commands.BotMissingPermissions
@@ -1326,7 +1430,10 @@ async def on_command_error(
 
         return
 
-    # Usuário não encontrado
+    # -----------------------------------------------------
+    # MEMBRO NÃO ENCONTRADO
+    # -----------------------------------------------------
+
     if isinstance(
         error,
         commands.MemberNotFound
@@ -1338,9 +1445,9 @@ async def on_command_error(
 
         return
 
-    # =====================================================
-    # ADDEMOJI SEM ARGUMENTO
-    # =====================================================
+    # -----------------------------------------------------
+    # ARGUMENTO OBRIGATÓRIO
+    # -----------------------------------------------------
 
     if isinstance(
         error,
@@ -1357,7 +1464,10 @@ async def on_command_error(
 
             return
 
-    # Argumento inválido
+    # -----------------------------------------------------
+    # ARGUMENTO INVÁLIDO
+    # -----------------------------------------------------
+
     if isinstance(
         error,
         commands.BadArgument
@@ -1370,7 +1480,10 @@ async def on_command_error(
 
         return
 
-    # Outros erros
+    # -----------------------------------------------------
+    # OUTROS ERROS
+    # -----------------------------------------------------
+
     print(
         f"⚠️ Erro: {error}"
     )
@@ -1380,4 +1493,12 @@ async def on_command_error(
 # INICIAR BOT
 # =========================================================
 
-bot.run(TOKEN)
+if not TOKEN:
+
+    print(
+        "❌ ERRO: DISCORD_TOKEN não foi encontrado."
+    )
+
+else:
+
+    bot.run(TOKEN)
