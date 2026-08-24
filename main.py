@@ -5,6 +5,7 @@ import os
 
 TOKEN = os.environ.get("DISCORD_TOKEN")
 PREFIXO = "."
+
 # =========================================================
 # CONFIGURAÇÕES
 # =========================================================
@@ -670,7 +671,6 @@ async def limpar_mensagens(
 
     usuario_id = ctx.author.id
 
-    # Limite de segurança
     if quantidade < 1:
 
         await ctx.send(
@@ -687,7 +687,6 @@ async def limpar_mensagens(
 
         return
 
-    # Verifica se já existe CL
     if cl_ativo.get(usuario_id, False):
 
         aviso = await ctx.send(
@@ -739,6 +738,7 @@ async def limpar_mensagens(
             try:
 
                 await mensagem.delete()
+
                 apagadas += 1
 
             except discord.NotFound:
@@ -893,6 +893,58 @@ async def bola_8(ctx, *, pergunta=None):
 
 
 # =========================================================
+# .ADDEMOJI
+# =========================================================
+
+@bot.command(name="addemoji")
+@commands.has_permissions(manage_emojis=True)
+async def adicionar_emoji(ctx, emoji: discord.PartialEmoji):
+
+    if not ctx.guild:
+
+        await ctx.send(
+            "❌ Este comando só pode ser usado dentro de um servidor."
+        )
+
+        return
+
+    if not emoji.is_custom_emoji():
+
+        await ctx.send(
+            "❌ Você precisa enviar um **emoji personalizado**."
+        )
+
+        return
+
+    try:
+
+        imagem = await emoji.read()
+
+        novo_emoji = await ctx.guild.create_custom_emoji(
+            name=emoji.name,
+            image=imagem
+        )
+
+        await ctx.send(
+            f"✅ Emoji **{novo_emoji.name}** adicionado com sucesso!\n"
+            f"{novo_emoji}"
+        )
+
+    except discord.Forbidden:
+
+        await ctx.send(
+            "❌ Não tenho permissão para adicionar emojis neste servidor."
+        )
+
+    except discord.HTTPException as erro:
+
+        await ctx.send(
+            "❌ Não foi possível adicionar o emoji.\n"
+            f"Erro: `{erro}`"
+        )
+
+
+# =========================================================
 # .HELP
 # =========================================================
 
@@ -956,6 +1008,15 @@ async def ajuda(ctx):
         inline=False
     )
 
+    embed.add_field(
+        name="😀 EMOJIS",
+        value=(
+            "`.addemoji <:emoji:ID>` — "
+            "Adiciona um emoji personalizado de outro servidor."
+        ),
+        inline=False
+    )
+
     embed.set_footer(
         text=f"Prefixo: {PREFIXO}"
     )
@@ -982,7 +1043,7 @@ async def on_command_error(ctx, error):
     ):
 
         await ctx.send(
-            "❌ Você não possui permissão para usar esse comando."
+            "❌ Você não possui permissão para usar este comando."
         )
 
         return
