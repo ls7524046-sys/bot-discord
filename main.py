@@ -1979,4 +1979,5 @@ async def on_command_error(ctx, error):
 if not TOKEN:
     print("❌ ERRO: DISCORD_TOKEN não foi encontrado.")
 else:
+
     bot.run(TOKEN)
