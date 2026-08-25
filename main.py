@@ -5,8 +5,10 @@ import os
 import json
 import time
 import aiohttp
+import datetime
 
-from discord.ext import commands
+from zoneinfo import ZoneInfo
+from discord.ext import commands, tasks
 
 
 # =========================================================
@@ -19,8 +21,11 @@ PREFIXO = "."
 # Canal de BOT ONLINE
 ONLINE_CHANNEL_ID = os.environ.get("ONLINE_CHANNEL_ID")
 
-# Canal de BOT OFFLINE
-OFFLINE_CHANNEL_ID = os.environ.get("OFFLINE_CHANNEL_ID")
+# Canal onde serão anunciados os destaques
+DESTAQUE_CHANNEL_ID = os.environ.get("DESTAQUE_CHANNEL_ID")
+
+# Cargo dado ao TOP 1
+TOP1_ROLE_ID = os.environ.get("TOP1_ROLE_ID")
 
 
 intents = discord.Intents.default()
@@ -51,11 +56,21 @@ AFK_FILE = "afk.json"
 rank_mensagens = {}
 afk_usuarios = {}
 
-# CL
+# Controle do CL
 cl_ativo = {}
 cl_cooldown = {}
 
 CL_COOLDOWN = 600
+
+# Controle do ranking semanal
+top_anterior = {}
+top1_anterior = {}
+
+# Controle do último reset
+ultimo_reset = None
+
+# Fuso horário de São Paulo
+FUSO_HORARIO = ZoneInfo("America/Sao_Paulo")
 
 
 # =========================================================
@@ -110,7 +125,10 @@ def salvar_json(arquivo, dados):
         )
 
 
-# Carrega os dados ao iniciar
+# =========================================================
+# CARREGA OS DADOS
+# =========================================================
+
 rank_mensagens = carregar_json(
     RANK_FILE
 )
@@ -121,6 +139,422 @@ afk_usuarios = carregar_json(
 
 
 # =========================================================
+# FUNÇÕES DO RANKING
+# =========================================================
+
+def obter_ranking(guild):
+
+    guild_id = str(
+        guild.id
+    )
+
+    dados = rank_mensagens.get(
+        guild_id,
+        {}
+    )
+
+    return sorted(
+        dados.items(),
+        key=lambda x: x[1],
+        reverse=True
+    )
+
+
+async def enviar_destaque(
+    guild,
+    membro
+):
+
+    if not DESTAQUE_CHANNEL_ID:
+        return
+
+    try:
+
+        canal = bot.get_channel(
+            int(DESTAQUE_CHANNEL_ID)
+        )
+
+        if not canal:
+            print(
+                "⚠️ Canal de destaque não encontrado."
+            )
+            return
+
+        await canal.send(
+            f"🌟 **{membro.display_name} agora é destaque "
+            f"da semana do nosso servidor!** 🏆"
+        )
+
+    except Exception as erro:
+
+        print(
+            f"⚠️ Erro ao enviar destaque: {erro}"
+        )
+
+
+async def atualizar_cargo_top1(
+    guild,
+    novo_top1_id
+):
+
+    if not TOP1_ROLE_ID:
+        return
+
+    try:
+
+        cargo = guild.get_role(
+            int(TOP1_ROLE_ID)
+        )
+
+        if not cargo:
+
+            print(
+                f"⚠️ Cargo TOP 1 não encontrado "
+                f"no servidor {guild.name}."
+            )
+
+            return
+
+        guild_id = str(
+            guild.id
+        )
+
+        antigo_top1_id = top1_anterior.get(
+            guild_id
+        )
+
+        # -------------------------------------------------
+        # REMOVE O CARGO DO ANTIGO TOP 1
+        # -------------------------------------------------
+
+        if (
+            antigo_top1_id
+            and antigo_top1_id != novo_top1_id
+        ):
+
+            antigo_membro = guild.get_member(
+                int(antigo_top1_id)
+            )
+
+            if (
+                antigo_membro
+                and cargo in antigo_membro.roles
+            ):
+
+                try:
+
+                    await antigo_membro.remove_roles(
+                        cargo,
+                        reason="Novo TOP 1 semanal"
+                    )
+
+                    print(
+                        f"🔄 Cargo TOP 1 removido de "
+                        f"{antigo_membro}."
+                    )
+
+                except discord.Forbidden:
+
+                    print(
+                        f"⚠️ Não consegui remover o cargo "
+                        f"de {antigo_membro}."
+                    )
+
+        # -------------------------------------------------
+        # ADICIONA O CARGO AO NOVO TOP 1
+        # -------------------------------------------------
+
+        novo_membro = guild.get_member(
+            int(novo_top1_id)
+        )
+
+        if not novo_membro:
+            return
+
+        if cargo not in novo_membro.roles:
+
+            try:
+
+                await novo_membro.add_roles(
+                    cargo,
+                    reason="Novo TOP 1 semanal"
+                )
+
+                print(
+                    f"👑 {novo_membro} agora é TOP 1!"
+                )
+
+            except discord.Forbidden:
+
+                print(
+                    "⚠️ Não consegui dar o cargo "
+                    "ao novo TOP 1."
+                )
+
+        top1_anterior[
+            guild_id
+        ] = str(novo_top1_id)
+
+    except Exception as erro:
+
+        print(
+            f"⚠️ Erro ao atualizar cargo TOP 1: {erro}"
+        )
+
+
+async def verificar_ranking(guild):
+
+    guild_id = str(
+        guild.id
+    )
+
+    ranking = obter_ranking(
+        guild
+    )
+
+    if not ranking:
+        return
+
+    # -----------------------------------------------------
+    # TOP 10 ATUAL
+    # -----------------------------------------------------
+
+    top_atual = {
+        str(user_id)
+        for user_id, quantidade in ranking[:10]
+    }
+
+    top_antigo = top_anterior.get(
+        guild_id,
+        set()
+    )
+
+    # -----------------------------------------------------
+    # DESCOBRE QUEM ENTROU NO TOP 10
+    # -----------------------------------------------------
+
+    novos_destaques = (
+        top_atual - top_antigo
+    )
+
+    for user_id in novos_destaques:
+
+        membro = guild.get_member(
+            int(user_id)
+        )
+
+        if membro:
+
+            await enviar_destaque(
+                guild,
+                membro
+            )
+
+    # -----------------------------------------------------
+    # ATUALIZA TOP 10
+    # -----------------------------------------------------
+
+    top_anterior[
+        guild_id
+    ] = top_atual
+
+    # -----------------------------------------------------
+    # VERIFICA TOP 1
+    # -----------------------------------------------------
+
+    novo_top1_id = str(
+        ranking[0][0]
+    )
+
+    antigo_top1_id = top1_anterior.get(
+        guild_id
+    )
+
+    if novo_top1_id != antigo_top1_id:
+
+        await atualizar_cargo_top1(
+            guild,
+            novo_top1_id
+        )
+
+
+def preparar_ranking_inicial():
+
+    """
+    Carrega o TOP 10 existente quando o bot inicia.
+    Isso evita que todos os usuários existentes
+    sejam anunciados novamente como destaque.
+    """
+
+    for guild in bot.guilds:
+
+        guild_id = str(
+            guild.id
+        )
+
+        ranking = obter_ranking(
+            guild
+        )
+
+        if not ranking:
+            continue
+
+        top_anterior[
+            guild_id
+        ] = {
+            str(user_id)
+            for user_id, quantidade in ranking[:10]
+        }
+
+        top1_anterior[
+            guild_id
+        ] = str(
+            ranking[0][0]
+        )
+
+
+# =========================================================
+# RESET SEMANAL
+# =========================================================
+
+async def executar_reset_semanal():
+
+    global ultimo_reset
+
+    agora = datetime.datetime.now(
+        FUSO_HORARIO
+    )
+
+    chave_reset = agora.strftime(
+        "%Y-%m-%d"
+    )
+
+    # Evita executar duas vezes no mesmo dia
+    if ultimo_reset == chave_reset:
+        return
+
+    # Segunda-feira
+    if agora.weekday() != 0:
+        return
+
+    # Só executa nos primeiros minutos da segunda
+    if agora.hour != 0:
+        return
+
+    ultimo_reset = chave_reset
+
+    print(
+        "🔄 Iniciando reset semanal do ranking..."
+    )
+
+    for guild in bot.guilds:
+
+        guild_id = str(
+            guild.id
+        )
+
+        # -------------------------------------------------
+        # REMOVE CARGO DO ANTIGO TOP 1
+        # -------------------------------------------------
+
+        if TOP1_ROLE_ID:
+
+            try:
+
+                cargo = guild.get_role(
+                    int(TOP1_ROLE_ID)
+                )
+
+                antigo_top1_id = top1_anterior.get(
+                    guild_id
+                )
+
+                if cargo and antigo_top1_id:
+
+                    membro = guild.get_member(
+                        int(antigo_top1_id)
+                    )
+
+                    if (
+                        membro
+                        and cargo in membro.roles
+                    ):
+
+                        await membro.remove_roles(
+                            cargo,
+                            reason="Reset semanal do ranking"
+                        )
+
+                        print(
+                            f"🗑️ Cargo removido de "
+                            f"{membro}."
+                        )
+
+            except discord.Forbidden:
+
+                print(
+                    f"⚠️ Não consegui remover o cargo "
+                    f"do antigo TOP 1 em {guild.name}."
+                )
+
+            except Exception as erro:
+
+                print(
+                    f"⚠️ Erro ao remover cargo no reset: {erro}"
+                )
+
+        # -------------------------------------------------
+        # ZERA O RANKING
+        # -------------------------------------------------
+
+        rank_mensagens[
+            guild_id
+        ] = {}
+
+        # -------------------------------------------------
+        # LIMPA CONTROLES
+        # -------------------------------------------------
+
+        top_anterior.pop(
+            guild_id,
+            None
+        )
+
+        top1_anterior.pop(
+            guild_id,
+            None
+
+        )
+
+    # -----------------------------------------------------
+    # SALVA O RANKING ZERADO
+    # -----------------------------------------------------
+
+    salvar_json(
+        RANK_FILE,
+        rank_mensagens
+    )
+
+    print(
+        "✅ Ranking semanal resetado com sucesso!"
+    )
+
+
+@tasks.loop(minutes=1)
+async def verificar_reset_semanal():
+
+    try:
+
+        await executar_reset_semanal()
+
+    except Exception as erro:
+
+        print(
+            f"⚠️ Erro no reset semanal: {erro}"
+        )
+
+
+# =========================================================
 # BOT ONLINE
 # =========================================================
 
@@ -128,10 +562,30 @@ afk_usuarios = carregar_json(
 async def on_ready():
 
     print("=" * 50)
-    print(f"✅ Bot online: {bot.user}")
-    print(f"🆔 ID: {bot.user.id}")
-    print(f"📌 Prefixo: {PREFIXO}")
+    print(
+        f"✅ Bot online: {bot.user}"
+    )
+    print(
+        f"🆔 ID: {bot.user.id}"
+    )
+    print(
+        f"📌 Prefixo: {PREFIXO}"
+    )
     print("=" * 50)
+
+    # -----------------------------------------------------
+    # PREPARA RANKING EXISTENTE
+    # -----------------------------------------------------
+
+    preparar_ranking_inicial()
+
+    # -----------------------------------------------------
+    # INICIA SISTEMA DE RESET
+    # -----------------------------------------------------
+
+    if not verificar_reset_semanal.is_running():
+
+        verificar_reset_semanal.start()
 
     # -----------------------------------------------------
     # MENSAGEM ONLINE
@@ -172,52 +626,6 @@ async def on_ready():
 
 
 # =========================================================
-# BOT OFFLINE
-# =========================================================
-
-@bot.event
-async def on_disconnect():
-
-    print(
-        "🔴 Bot desconectado do Discord."
-    )
-
-    if not OFFLINE_CHANNEL_ID:
-        return
-
-    try:
-
-        canal = bot.get_channel(
-            int(OFFLINE_CHANNEL_ID)
-        )
-
-        if canal:
-
-            embed = discord.Embed(
-                title="🔴 BOT OFFLINE",
-                description=(
-                    f"**{bot.user.name}** foi desconectado "
-                    "do Discord."
-                ),
-                color=discord.Color.red()
-            )
-
-            embed.set_footer(
-                text="Sistema automático"
-            )
-
-            await canal.send(
-                embed=embed
-            )
-
-    except Exception as erro:
-
-        print(
-            f"⚠️ Não foi possível enviar OFFLINE: {erro}"
-        )
-
-
-# =========================================================
 # CONTADOR DE MENSAGENS / AFK
 # =========================================================
 
@@ -232,22 +640,41 @@ async def on_message(message):
     # RANK
     # -----------------------------------------------------
 
-    guild_id = str(message.guild.id) if message.guild else None
-    user_id = str(message.author.id)
+    guild_id = (
+        str(message.guild.id)
+        if message.guild
+        else None
+    )
+
+    user_id = str(
+        message.author.id
+    )
 
     if guild_id:
 
         if guild_id not in rank_mensagens:
-            rank_mensagens[guild_id] = {}
+
+            rank_mensagens[
+                guild_id
+            ] = {}
 
         if user_id not in rank_mensagens[guild_id]:
-            rank_mensagens[guild_id][user_id] = 0
 
-        rank_mensagens[guild_id][user_id] += 1
+            rank_mensagens[
+                guild_id
+            ][user_id] = 0
 
-        # Salva a cada mensagem.
-        # Se o servidor for muito movimentado, pode trocar
-        # por um sistema de salvamento periódico.
+        # Adiciona mensagem
+        rank_mensagens[
+            guild_id
+        ][user_id] += 1
+
+        # Verifica TOP 10 e TOP 1
+        await verificar_ranking(
+            message.guild
+        )
+
+        # Salva ranking
         salvar_json(
             RANK_FILE,
             rank_mensagens
@@ -259,16 +686,11 @@ async def on_message(message):
 
     if guild_id:
 
-        chave_afk = f"{guild_id}_{user_id}"
+        chave_afk = (
+            f"{guild_id}_{user_id}"
+        )
 
         if chave_afk in afk_usuarios:
-
-            motivo = afk_usuarios[
-                chave_afk
-            ].get(
-                "motivo",
-                "AFK"
-            )
 
             del afk_usuarios[
                 chave_afk
@@ -287,14 +709,20 @@ async def on_message(message):
                     f"Seu AFK foi removido."
                 )
 
-                await asyncio.sleep(5)
+                await asyncio.sleep(
+                    5
+                )
 
                 try:
+
                     await aviso.delete()
+
                 except:
+
                     pass
 
             except:
+
                 pass
 
     # -----------------------------------------------------
@@ -334,7 +762,7 @@ async def on_message(message):
                 )
 
     # -----------------------------------------------------
-    # PROCESSA OS COMANDOS
+    # PROCESSA COMANDOS
     # -----------------------------------------------------
 
     await bot.process_commands(
@@ -386,22 +814,27 @@ class EmbedEditorView(discord.ui.View):
         )
 
         if self.titulo:
+
             embed.title = self.titulo
 
         if self.descricao:
+
             embed.description = self.descricao
 
         if self.imagem:
+
             embed.set_image(
                 url=self.imagem
             )
 
         if self.thumbnail:
+
             embed.set_thumbnail(
                 url=self.thumbnail
             )
 
         if self.rodape:
+
             embed.set_footer(
                 text=self.rodape
             )
@@ -1131,10 +1564,6 @@ async def limpar_mensagens(ctx):
 
         return
 
-    # -----------------------------------------------------
-    # COOLDOWN
-    # -----------------------------------------------------
-
     agora = asyncio.get_running_loop().time()
 
     if usuario_id in cl_cooldown:
@@ -1192,7 +1621,6 @@ async def limpar_mensagens(ctx):
 
     try:
 
-        # Procura até 100 mensagens do usuário
         mensagens = []
 
         async for mensagem in ctx.channel.history(
@@ -1240,11 +1668,6 @@ async def limpar_mensagens(ctx):
                     2
                 )
 
-                print(
-                    f"⚠️ Rate limit no CL. "
-                    f"Aguardando {retry_after:.2f}s."
-                )
-
                 await asyncio.sleep(
                     retry_after
                 )
@@ -1265,7 +1688,9 @@ async def limpar_mensagens(ctx):
 
         if total > 0:
 
-            cl_cooldown[usuario_id] = (
+            cl_cooldown[
+                usuario_id
+            ] = (
                 asyncio.get_running_loop().time()
                 + CL_COOLDOWN
             )
@@ -1421,7 +1846,7 @@ async def afk(
 
 
 # =========================================================
-# RANK
+# .RANK
 # =========================================================
 
 @bot.command(name="rank")
@@ -1521,7 +1946,11 @@ async def rank(
         return
 
     embed = discord.Embed(
-        title=f"🏆 Ranking de Mensagens — {ctx.guild.name}",
+        title=f"🏆 Ranking da Semana — {ctx.guild.name}",
+        description=(
+            "📅 O ranking é resetado toda segunda-feira "
+            "às 00:00."
+        ),
         color=discord.Color.gold()
     )
 
@@ -1545,15 +1974,19 @@ async def rank(
             nome = f"Usuário {user_id}"
 
         if posicao == 1:
+
             medalha = "🥇"
 
         elif posicao == 2:
+
             medalha = "🥈"
 
         elif posicao == 3:
+
             medalha = "🥉"
 
         else:
+
             medalha = f"`#{posicao}`"
 
         linhas.append(
@@ -1561,8 +1994,9 @@ async def rank(
             f"💬 {quantidade}"
         )
 
-    embed.description = "\n".join(
-        linhas
+    embed.description += (
+        "\n\n"
+        + "\n".join(linhas)
     )
 
     embed.set_footer(
@@ -2048,10 +2482,13 @@ async def ajuda(ctx):
     )
 
     embed.add_field(
-        name="🏆 RANK",
+        name="🏆 RANKING SEMANAL",
         value=(
-            "`.rank` — Ranking de mensagens\n"
-            "`.rank @usuário` — Rank individual"
+            "`.rank` — Ranking da semana\n"
+            "`.rank @usuário` — Rank individual\n"
+            "🔄 Reset toda segunda às 00:00\n"
+            "⭐ TOP 10 recebem destaque\n"
+            "👑 TOP 1 recebe cargo automaticamente"
         ),
         inline=False
     )
