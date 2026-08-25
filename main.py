@@ -1,4 +1,6 @@
-import discord
+from pathlib import Path
+
+source = r'''import discord
 import random
 import asyncio
 import os
@@ -25,9 +27,6 @@ RANK_CHANNEL_ID = 1541685886377533500
 # Cargo entregue automaticamente ao TOP 1
 TOP1_ROLE_ID = 1541801906782081154
 
-# Canal do Feed / Instagram
-FEED_CHANNEL_ID = 1541814029771612381
-
 # Fuso horário do Brasil
 TIMEZONE = ZoneInfo("America/Sao_Paulo")
 
@@ -38,6 +37,7 @@ RANK_FILE = "rank.json"
 RANK_META_FILE = "rank_meta.json"
 AFK_FILE = "afk.json"
 FEED_FILE = "feed.json"
+FEED_CHANNELS_FILE = "feed_channels.json"
 
 
 intents = discord.Intents.default()
@@ -58,6 +58,7 @@ bot = commands.Bot(
 rank_mensagens = {}
 afk_usuarios = {}
 feed_posts = {}
+feed_channels = {}
 
 destaques_anunciados = {}
 top1_atual = {}
@@ -99,6 +100,7 @@ def salvar_json(arquivo, dados):
 rank_mensagens = carregar_json(RANK_FILE)
 afk_usuarios = carregar_json(AFK_FILE)
 feed_posts = carregar_json(FEED_FILE)
+feed_channels = carregar_json(FEED_CHANNELS_FILE)
 
 rank_meta = carregar_json(RANK_META_FILE)
 
@@ -313,10 +315,19 @@ async def antes_do_rank_semanal():
 # FEED / INSTAGRAM
 # =========================================================
 
+def canal_instagram_do_servidor(guild_id):
+    return feed_channels.get(str(guild_id))
+
+
+def salvar_feed_channels():
+    salvar_json(FEED_CHANNELS_FILE, feed_channels)
+
+
 def criar_embed_feed(post):
     autor_nome = post.get("autor_nome", "Usuário")
     autor_avatar = post.get("autor_avatar")
     imagem = post.get("imagem")
+    legenda = post.get("legenda", "")
     curtidas = post.get("curtidas", [])
     comentarios = post.get("comentarios", [])
 
@@ -335,6 +346,9 @@ def criar_embed_feed(post):
         )
     else:
         embed.set_author(name=autor_nome)
+
+    if legenda:
+        embed.description = legenda
 
     if imagem:
         embed.set_image(url=imagem)
@@ -371,9 +385,7 @@ def criar_embed_feed(post):
             inline=False
         )
 
-    embed.set_footer(
-        text="T7 | Community • Feed"
-    )
+    embed.set_footer(text="T7 | Community • Instagram")
 
     return embed
 
@@ -383,11 +395,18 @@ class FeedView(discord.ui.View):
         super().__init__(timeout=None)
         self.post_id = str(post_id)
 
+        # Cada post recebe custom_ids próprios.
+        for item in self.children:
+            if isinstance(item, discord.ui.Button):
+                if item.label == "Curtir":
+                    item.custom_id = f"feed_curtir_{self.post_id}"
+                elif item.label == "Comentar":
+                    item.custom_id = f"feed_comentar_{self.post_id}"
+
     @discord.ui.button(
         label="Curtir",
         emoji="❤️",
-        style=discord.ButtonStyle.secondary,
-        custom_id="feed_curtir"
+        style=discord.ButtonStyle.secondary
     )
     async def curtir(self, interaction, button):
         post_id = self.post_id
@@ -435,8 +454,7 @@ class FeedView(discord.ui.View):
     @discord.ui.button(
         label="Comentar",
         emoji="💬",
-        style=discord.ButtonStyle.primary,
-        custom_id="feed_comentar"
+        style=discord.ButtonStyle.primary
     )
     async def comentar(self, interaction, button):
         if self.post_id not in feed_posts:
@@ -478,10 +496,7 @@ class ComentarioFeedModal(discord.ui.Modal):
 
         post = feed_posts[self.post_id]
 
-        comentarios = post.setdefault(
-            "comentarios",
-            []
-        )
+        comentarios = post.setdefault("comentarios", [])
 
         comentarios.append({
             "user_id": str(interaction.user.id),
@@ -515,7 +530,20 @@ class ComentarioFeedModal(discord.ui.Modal):
 
 
 async def processar_post_feed(message):
-    if message.channel.id != FEED_CHANNEL_ID:
+    if message.guild is None:
+        return False
+
+    canal_feed = canal_instagram_do_servidor(message.guild.id)
+
+    if not canal_feed:
+        return False
+
+    if message.channel.id != int(canal_feed):
+        return False
+
+    # O comando .post é tratado pelo próprio comando.
+    # Aqui só processamos imagens enviadas diretamente no canal já ativado.
+    if message.content.startswith(PREFIXO + "post"):
         return False
 
     if not message.attachments:
@@ -537,7 +565,6 @@ async def processar_post_feed(message):
 
     post_id = str(message.id)
 
-    # Evita duplicação caso o evento seja processado novamente.
     if post_id in feed_posts:
         try:
             await message.delete()
@@ -551,6 +578,7 @@ async def processar_post_feed(message):
         "autor_nome": message.author.display_name,
         "autor_avatar": message.author.display_avatar.url,
         "imagem": imagem.url,
+        "legenda": message.content.strip(),
         "curtidas": [],
         "comentarios": [],
         "data": int(time.time())
@@ -570,26 +598,23 @@ async def processar_post_feed(message):
         try:
             await message.delete()
         except discord.Forbidden:
-            print("⚠️ Não consigo apagar a mensagem original do Feed.")
+            print("⚠️ Não consigo apagar a mensagem original do Instagram.")
         except discord.HTTPException as erro:
             print(f"⚠️ Erro ao apagar mensagem original: {erro}")
 
         return True
 
     except discord.Forbidden:
-        print("⚠️ Não tenho permissão para enviar mensagens no Feed.")
+        print("⚠️ Não tenho permissão para enviar mensagens no Instagram.")
     except discord.HTTPException as erro:
-        print(f"⚠️ Erro ao criar post do Feed: {erro}")
+        print(f"⚠️ Erro ao criar post do Instagram: {erro}")
     except Exception as erro:
-        print(f"⚠️ Erro no sistema de Feed: {erro}")
+        print(f"⚠️ Erro no sistema de Instagram: {erro}")
 
     return False
 
 
 async def registrar_views_feed():
-    """
-    Reativa os botões dos posts existentes depois que o bot reinicia.
-    """
     quantidade = 0
 
     for post_id, post in feed_posts.items():
@@ -597,9 +622,7 @@ async def registrar_views_feed():
             continue
 
         try:
-            bot.add_view(
-                FeedView(post_id)
-            )
+            bot.add_view(FeedView(post_id))
             quantidade += 1
         except Exception as erro:
             print(
@@ -607,9 +630,113 @@ async def registrar_views_feed():
                 f"{post_id}: {erro}"
             )
 
-    print(
-        f"📸 {quantidade} post(s) do Feed carregado(s)."
-    )
+    print(f"📸 {quantidade} post(s) do Instagram carregado(s).")
+
+
+# =========================================================
+# COMANDO .POST — ATIVA O INSTAGRAM NO CANAL
+# =========================================================
+
+@bot.command(name="post")
+async def post_instagram(ctx, *, legenda=None):
+    """
+    .post ativa o sistema de Instagram no canal atual.
+
+    Com imagem anexada:
+        .post Minha legenda
+
+    Sem imagem:
+        .post
+    """
+
+    if ctx.guild is None:
+        await ctx.send("❌ Este comando só funciona dentro de um servidor.")
+        return
+
+    # Ativa/atualiza o Instagram neste canal.
+    feed_channels[str(ctx.guild.id)] = str(ctx.channel.id)
+    salvar_feed_channels()
+
+    # Procura uma imagem anexada ao comando.
+    imagem = None
+
+    for attachment in ctx.message.attachments:
+        nome = attachment.filename.lower()
+
+        if nome.endswith(
+            (".png", ".jpg", ".jpeg", ".gif", ".webp")
+        ):
+            imagem = attachment
+            break
+
+    # Se não tiver imagem, apenas ativa o canal.
+    if imagem is None:
+        embed = discord.Embed(
+            title="📸 Instagram ativado!",
+            description=(
+                f"Este canal, {ctx.channel.mention}, agora é o "
+                "**Instagram/Feed** do servidor.\n\n"
+                "📷 Para publicar, use:\n"
+                f"`{PREFIXO}post` + uma imagem anexada\n\n"
+                "Exemplo:\n"
+                f"`{PREFIXO}post Meu novo post!` + imagem\n\n"
+                "❤️ Curtir e 💬 comentar ficam disponíveis em cada publicação."
+            ),
+            color=discord.Color.blurple()
+        )
+
+        embed.set_footer(
+            text=f"Ativado por {ctx.author.display_name}"
+        )
+
+        try:
+            await ctx.message.delete()
+        except Exception:
+            pass
+
+        await ctx.send(embed=embed, delete_after=15)
+        return
+
+    # Cria o post.
+    post_id = str(ctx.message.id)
+
+    post = {
+        "message_id": None,
+        "autor_id": str(ctx.author.id),
+        "autor_nome": ctx.author.display_name,
+        "autor_avatar": ctx.author.display_avatar.url,
+        "imagem": imagem.url,
+        "legenda": (legenda or "").strip(),
+        "curtidas": [],
+        "comentarios": [],
+        "data": int(time.time())
+    }
+
+    try:
+        novo_post = await ctx.send(
+            embed=criar_embed_feed(post),
+            view=FeedView(post_id)
+        )
+
+        post["message_id"] = novo_post.id
+        feed_posts[post_id] = post
+
+        salvar_json(FEED_FILE, feed_posts)
+
+        try:
+            await ctx.message.delete()
+        except discord.Forbidden:
+            print("⚠️ Não consigo apagar o comando .post.")
+        except discord.HTTPException as erro:
+            print(f"⚠️ Erro ao apagar .post: {erro}")
+
+    except discord.Forbidden:
+        await ctx.send(
+            "❌ Não tenho permissão para publicar o post neste canal."
+        )
+    except discord.HTTPException as erro:
+        print(f"⚠️ Erro no .post: {erro}")
+        await ctx.send("❌ Não consegui publicar o post.")
 
 
 # =========================================================
@@ -624,13 +751,10 @@ async def on_ready():
     print(f"✅ Bot online: {bot.user}")
     print(f"🆔 ID: {bot.user.id}")
     print(f"📌 Prefixo: {PREFIXO}")
-    print(f"📸 Canal Feed: {FEED_CHANNEL_ID}")
+    print("📸 Instagram: ativado por .post em qualquer canal")
     print("=" * 50)
 
     await verificar_e_resetar_semana()
-
-    # Views persistentes precisam ser registradas após reinício.
-    # O add_view é seguro para os posts atuais.
     await registrar_views_feed()
 
     if not tarefa_rank_semanal.is_running():
@@ -678,10 +802,10 @@ async def on_message(message):
         return
 
     # -----------------------------------------------------
-    # FEED AUTOMÁTICO
+    # INSTAGRAM AUTOMÁTICO
     # -----------------------------------------------------
 
-    if message.channel.id == FEED_CHANNEL_ID:
+    if message.guild:
         foi_post = await processar_post_feed(message)
 
         if foi_post:
@@ -1900,9 +2024,11 @@ async def ajuda(ctx):
     )
 
     embed.add_field(
-        name="📸 FEED / INSTAGRAM",
+        name="📸 INSTAGRAM",
         value=(
-            "Envie uma imagem no canal de Feed e o bot publica automaticamente.\n"
+            "`.post` — Ativa o Instagram no canal atual.\n"
+            "`.post legenda` + imagem — Publica uma foto.\n"
+            "📷 Imagens enviadas depois também viram posts automaticamente.\n"
             "❤️ Curtir\n"
             "💬 Comentar\n"
             "💾 Curtidas e comentários são salvos."
@@ -1979,5 +2105,10 @@ async def on_command_error(ctx, error):
 if not TOKEN:
     print("❌ ERRO: DISCORD_TOKEN não foi encontrado.")
 else:
-
     bot.run(TOKEN)
+'''
+
+path = Path("/mnt/data/main.py")
+path.write_text(source, encoding="utf-8")
+print(f"Arquivo criado: {path}")
+print(f"Tamanho: {path.stat().st_size} bytes")
