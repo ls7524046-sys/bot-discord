@@ -25,6 +25,17 @@ RANK_CHANNEL_ID = 1541685886377533500
 # Cargo entregue automaticamente ao TOP 1
 TOP1_ROLE_ID = 1541801906782081154
 
+# =========================================================
+# IMPORTANTE:
+# NÃO EXISTE MAIS FEED_CHANNEL_ID
+#
+# O Instagram será ativado com:
+#
+# .post
+#
+# no canal desejado.
+# =========================================================
+
 # Fuso horário do Brasil
 TIMEZONE = ZoneInfo("America/Sao_Paulo")
 
@@ -35,6 +46,7 @@ RANK_FILE = "rank.json"
 RANK_META_FILE = "rank_meta.json"
 AFK_FILE = "afk.json"
 FEED_FILE = "feed.json"
+POST_CHANNELS_FILE = "post_channels.json"
 
 
 # =========================================================
@@ -42,8 +54,10 @@ FEED_FILE = "feed.json"
 # =========================================================
 
 intents = discord.Intents.default()
+
 intents.message_content = True
 intents.members = True
+
 
 bot = commands.Bot(
     command_prefix=PREFIXO,
@@ -60,11 +74,11 @@ rank_mensagens = {}
 afk_usuarios = {}
 feed_posts = {}
 
+# Canais que possuem Instagram ativado
+post_channels = {}
+
 destaques_anunciados = {}
 top1_atual = {}
-
-# Usuários que executaram .post e estão aguardando imagem
-post_aguardando = {}
 
 cl_ativo = {}
 cl_cancelar = {}
@@ -107,9 +121,17 @@ def salvar_json(arquivo, dados):
         print(f"⚠️ Erro ao salvar {arquivo}: {erro}")
 
 
+# =========================================================
+# CARREGAR DADOS
+# =========================================================
+
 rank_mensagens = carregar_json(RANK_FILE)
+
 afk_usuarios = carregar_json(AFK_FILE)
+
 feed_posts = carregar_json(FEED_FILE)
+
+post_channels = carregar_json(POST_CHANNELS_FILE)
 
 rank_meta = carregar_json(RANK_META_FILE)
 
@@ -125,7 +147,7 @@ top1_atual = rank_meta.get(
 
 semana_salva = rank_meta.get(
     "semana",
-    "" 
+    ""
 )
 
 
@@ -160,7 +182,9 @@ def resetar_rank_semanal():
     global top1_atual
 
     rank_mensagens = {}
+
     destaques_anunciados = {}
+
     top1_atual = {}
 
     salvar_json(
@@ -174,9 +198,7 @@ def resetar_rank_semanal():
 
 
 async def enviar_aviso_destaque(guild, membro):
-    canal = bot.get_channel(
-        RANK_CHANNEL_ID
-    )
+    canal = bot.get_channel(RANK_CHANNEL_ID)
 
     if canal is None:
         try:
@@ -186,7 +208,8 @@ async def enviar_aviso_destaque(guild, membro):
 
         except Exception as erro:
             print(
-                f"⚠️ Não consegui encontrar o canal de destaque: {erro}"
+                f"⚠️ Não consegui encontrar "
+                f"o canal de destaque: {erro}"
             )
             return
 
@@ -196,7 +219,8 @@ async def enviar_aviso_destaque(guild, membro):
             description=(
                 f"🌟 **{membro.display_name}** agora é "
                 f"**destaque da semana do nosso servidor!**\n\n"
-                f"Parabéns por entrar no **Top {TOP_LIMIT}**! 🎉"
+                f"Parabéns por entrar no "
+                f"**Top {TOP_LIMIT}**! 🎉"
             ),
             color=discord.Color.gold()
         )
@@ -215,7 +239,8 @@ async def enviar_aviso_destaque(guild, membro):
 
     except discord.Forbidden:
         print(
-            "⚠️ Não tenho permissão para enviar mensagens no canal de destaque."
+            "⚠️ Não tenho permissão para enviar "
+            "mensagens no canal de destaque."
         )
 
     except discord.HTTPException as erro:
@@ -246,28 +271,36 @@ async def atualizar_top1(guild, lista):
     )
 
     if cargo is None:
+
         print(
-            f"⚠️ Cargo TOP 1 {TOP1_ROLE_ID} não foi encontrado em {guild.name}."
+            f"⚠️ Cargo TOP 1 {TOP1_ROLE_ID} "
+            f"não foi encontrado em {guild.name}."
         )
 
     elif guild.me is None:
+
         print(
-            "⚠️ Não consegui identificar o membro do bot."
+            "⚠️ Não consegui identificar "
+            "o membro do bot."
         )
 
     elif cargo >= guild.me.top_role:
+
         print(
-            "⚠️ Coloque o cargo do bot acima do cargo de destaque."
+            "⚠️ Coloque o cargo do bot acima "
+            "do cargo de destaque."
         )
 
     else:
 
         if antigo_top1_id:
+
             antigo_membro = guild.get_member(
                 int(antigo_top1_id)
             )
 
             if antigo_membro and cargo in antigo_membro.roles:
+
                 try:
                     await antigo_membro.remove_roles(
                         cargo,
@@ -276,7 +309,8 @@ async def atualizar_top1(guild, lista):
 
                 except discord.Forbidden:
                     print(
-                        "⚠️ Não consegui remover o cargo do antigo TOP 1."
+                        "⚠️ Não consegui remover "
+                        "o cargo do antigo TOP 1."
                     )
 
                 except discord.HTTPException as erro:
@@ -289,6 +323,7 @@ async def atualizar_top1(guild, lista):
         )
 
         if novo_membro:
+
             try:
                 await novo_membro.add_roles(
                     cargo,
@@ -301,7 +336,8 @@ async def atualizar_top1(guild, lista):
 
             except discord.Forbidden:
                 print(
-                    "⚠️ Não tenho permissão para entregar o cargo."
+                    "⚠️ Não tenho permissão "
+                    "para entregar o cargo."
                 )
 
             except discord.HTTPException as erro:
@@ -318,11 +354,13 @@ async def atualizar_top1(guild, lista):
     )
 
     if novo_membro:
+
         canal = bot.get_channel(
             RANK_CHANNEL_ID
         )
 
         if canal is None:
+
             try:
                 canal = await bot.fetch_channel(
                     RANK_CHANNEL_ID
@@ -332,10 +370,11 @@ async def atualizar_top1(guild, lista):
                 canal = None
 
         if canal:
+
             try:
                 await canal.send(
-                    f"👑 **{novo_membro.mention} agora é o TOP 1 "
-                    f"da semana do nosso servidor!** 🏆"
+                    f"👑 **{novo_membro.mention} agora é "
+                    f"o TOP 1 da semana do nosso servidor!** 🏆"
                 )
 
             except Exception as erro:
@@ -384,6 +423,7 @@ async def verificar_ranking(guild, user_id):
             )
 
             if membro:
+
                 destaques_anunciados[guild_id].append(
                     str(user_id)
                 )
@@ -440,6 +480,10 @@ async def antes_do_rank_semanal():
 # INSTAGRAM / FEED
 # =========================================================
 
+def canal_e_instagram(channel_id):
+    return str(channel_id) in post_channels
+
+
 def criar_embed_feed(post):
 
     autor_nome = post.get(
@@ -477,17 +521,20 @@ def criar_embed_feed(post):
     )
 
     if autor_avatar:
+
         embed.set_author(
             name=autor_nome,
             icon_url=autor_avatar
         )
 
     else:
+
         embed.set_author(
             name=autor_nome
         )
 
     if imagem:
+
         embed.set_image(
             url=imagem
         )
@@ -553,6 +600,7 @@ def criar_embed_feed(post):
 class FeedView(discord.ui.View):
 
     def __init__(self, post_id):
+
         super().__init__(
             timeout=None
         )
@@ -584,9 +632,7 @@ class FeedView(discord.ui.View):
 
             return
 
-        post = feed_posts[
-            post_id
-        ]
+        post = feed_posts[post_id]
 
         usuario_id = str(
             interaction.user.id
@@ -625,9 +671,7 @@ class FeedView(discord.ui.View):
         try:
 
             mensagem_post = await interaction.channel.fetch_message(
-                int(
-                    post["message_id"]
-                )
+                int(post["message_id"])
             )
 
             await mensagem_post.edit(
@@ -643,6 +687,7 @@ class FeedView(discord.ui.View):
             pass
 
         except discord.HTTPException as erro:
+
             print(
                 f"⚠️ Erro ao atualizar curtida: {erro}"
             )
@@ -740,9 +785,7 @@ class ComentarioFeedModal(discord.ui.Modal):
                 "nome": interaction.user.display_name,
                 "avatar": interaction.user.display_avatar.url,
                 "texto": self.comentario.value.strip(),
-                "data": int(
-                    time.time()
-                )
+                "data": int(time.time())
             }
         )
 
@@ -754,9 +797,7 @@ class ComentarioFeedModal(discord.ui.Modal):
         try:
 
             mensagem_post = await interaction.channel.fetch_message(
-                int(
-                    post["message_id"]
-                )
+                int(post["message_id"])
             )
 
             await mensagem_post.edit(
@@ -772,6 +813,7 @@ class ComentarioFeedModal(discord.ui.Modal):
             pass
 
         except discord.HTTPException as erro:
+
             print(
                 f"⚠️ Erro ao atualizar comentário: {erro}"
             )
@@ -783,99 +825,18 @@ class ComentarioFeedModal(discord.ui.Modal):
 
 
 # =========================================================
-# .POST
+# PROCESSAR POST
 # =========================================================
 
-@bot.command(name="post")
-async def criar_post(ctx):
+async def processar_post_feed(message):
 
-    if ctx.guild is None:
-
-        await ctx.send(
-            "❌ Este comando só pode ser usado dentro de um servidor."
-        )
-
-        return
-
-    usuario_id = str(
-        ctx.author.id
-    )
-
-    if usuario_id in post_aguardando:
-
-        dados = post_aguardando[
-            usuario_id
-        ]
-
-        if time.time() < dados["expira"]:
-
-            await ctx.send(
-                "⚠️ Você já possui uma publicação aguardando imagem."
-            )
-
-            return
-
-        post_aguardando.pop(
-            usuario_id,
-            None
-        )
-
-    post_aguardando[
-        usuario_id
-    ] = {
-        "channel_id": ctx.channel.id,
-        "expira": time.time() + 120
-    }
-
-    embed = discord.Embed(
-        title="📸 Criar publicação",
-        description=(
-            f"{ctx.author.mention}, envie **uma imagem neste canal**.\n\n"
-            "⏱️ Você tem **2 minutos** para enviar.\n\n"
-            "Depois que a imagem for enviada, ela será publicada "
-            "automaticamente no Instagram."
-        ),
-        color=discord.Color.blurple()
-    )
-
-    embed.set_footer(
-        text="T7 | Community • Instagram"
-    )
-
-    await ctx.send(
-        embed=embed
-    )
-
-
-# =========================================================
-# PROCESSAR IMAGEM DO .POST
-# =========================================================
-
-async def processar_post_comando(message):
-
-    usuario_id = str(
-        message.author.id
-    )
-
-    if usuario_id not in post_aguardando:
+    # Só processa canais ativados pelo .post
+    if not canal_e_instagram(
+        message.channel.id
+    ):
         return False
 
-    dados_aguardando = post_aguardando[
-        usuario_id
-    ]
-
-    if time.time() > dados_aguardando["expira"]:
-
-        post_aguardando.pop(
-            usuario_id,
-            None
-        )
-
-        return False
-
-    if message.channel.id != dados_aguardando["channel_id"]:
-        return False
-
+    # Ignora mensagens sem anexos
     if not message.attachments:
         return False
 
@@ -894,15 +855,29 @@ async def processar_post_comando(message):
                 ".webp"
             )
         ):
+
             imagem = attachment
+
             break
 
+    # Não é imagem
     if imagem is None:
         return False
 
     post_id = str(
         message.id
     )
+
+    # Evita duplicação
+    if post_id in feed_posts:
+
+        try:
+            await message.delete()
+
+        except Exception:
+            pass
+
+        return True
 
     post = {
         "message_id": None,
@@ -914,14 +889,15 @@ async def processar_post_comando(message):
         "imagem": imagem.url,
         "curtidas": [],
         "comentarios": [],
-        "data": int(
-            time.time()
+        "data": int(time.time()),
+        "canal_id": str(
+            message.channel.id
         )
     }
 
     try:
 
-        mensagem_post = await message.channel.send(
+        novo_post = await message.channel.send(
             embed=criar_embed_feed(
                 post
             ),
@@ -930,20 +906,13 @@ async def processar_post_comando(message):
             )
         )
 
-        post["message_id"] = mensagem_post.id
+        post["message_id"] = novo_post.id
 
-        feed_posts[
-            post_id
-        ] = post
+        feed_posts[post_id] = post
 
         salvar_json(
             FEED_FILE,
             feed_posts
-        )
-
-        post_aguardando.pop(
-            usuario_id,
-            None
         )
 
         try:
@@ -953,13 +922,14 @@ async def processar_post_comando(message):
         except discord.Forbidden:
 
             print(
-                "⚠️ Não tenho permissão para apagar a imagem original."
+                "⚠️ Não consigo apagar a mensagem "
+                "original do Instagram."
             )
 
         except discord.HTTPException as erro:
 
             print(
-                f"⚠️ Erro ao apagar imagem original: {erro}"
+                f"⚠️ Erro ao apagar mensagem original: {erro}"
             )
 
         return True
@@ -967,26 +937,27 @@ async def processar_post_comando(message):
     except discord.Forbidden:
 
         print(
-            "⚠️ Não tenho permissão para criar a publicação."
+            "⚠️ Não tenho permissão para enviar "
+            "mensagens neste Instagram."
         )
 
     except discord.HTTPException as erro:
 
         print(
-            f"⚠️ Erro HTTP ao criar publicação: {erro}"
+            f"⚠️ Erro ao criar post do Instagram: {erro}"
         )
 
     except Exception as erro:
 
         print(
-            f"⚠️ Erro no sistema Instagram: {erro}"
+            f"⚠️ Erro no sistema de Instagram: {erro}"
         )
 
     return False
 
 
 # =========================================================
-# RESTAURAR POSTS APÓS REINICIAR
+# REATIVAR BOTÕES
 # =========================================================
 
 async def registrar_views_feed():
@@ -1013,8 +984,8 @@ async def registrar_views_feed():
         except Exception as erro:
 
             print(
-                f"⚠️ Não consegui registrar botão do post "
-                f"{post_id}: {erro}"
+                f"⚠️ Não consegui registrar "
+                f"botão do post {post_id}: {erro}"
             )
 
     print(
@@ -1046,7 +1017,7 @@ async def on_ready():
     )
 
     print(
-        "📸 Instagram: `.post`"
+        f"📸 Instagram: ativado por .post"
     )
 
     print("=" * 50)
@@ -1107,7 +1078,8 @@ async def on_ready():
             except discord.Forbidden:
 
                 print(
-                    "⚠️ Não tenho permissão para enviar a mensagem ONLINE."
+                    "⚠️ Não tenho permissão "
+                    "para enviar a mensagem ONLINE."
                 )
 
             except discord.HTTPException as erro:
@@ -1127,16 +1099,20 @@ async def on_message(message):
     if message.author.bot:
         return
 
-    # -----------------------------------------------------
+    # =====================================================
     # INSTAGRAM
-    # -----------------------------------------------------
+    # =====================================================
 
-    foi_post = await processar_post_comando(
-        message
-    )
+    if canal_e_instagram(
+        message.channel.id
+    ):
 
-    if foi_post:
-        return
+        foi_post = await processar_post_feed(
+            message
+        )
+
+        if foi_post:
+            return
 
     guild_id = (
         str(message.guild.id)
@@ -1148,9 +1124,9 @@ async def on_message(message):
         message.author.id
     )
 
-    # -----------------------------------------------------
+    # =====================================================
     # RANK
-    # -----------------------------------------------------
+    # =====================================================
 
     if guild_id:
 
@@ -1158,21 +1134,13 @@ async def on_message(message):
 
         if guild_id not in rank_mensagens:
 
-            rank_mensagens[
-                guild_id
-            ] = {}
+            rank_mensagens[guild_id] = {}
 
-        if user_id not in rank_mensagens[
-            guild_id
-        ]:
+        if user_id not in rank_mensagens[guild_id]:
 
-            rank_mensagens[
-                guild_id
-            ][user_id] = 0
+            rank_mensagens[guild_id][user_id] = 0
 
-        rank_mensagens[
-            guild_id
-        ][user_id] += 1
+        rank_mensagens[guild_id][user_id] += 1
 
         salvar_json(
             RANK_FILE,
@@ -1184,9 +1152,9 @@ async def on_message(message):
             message.author.id
         )
 
-    # -----------------------------------------------------
+    # =====================================================
     # REMOVE AFK
-    # -----------------------------------------------------
+    # =====================================================
 
     if guild_id:
 
@@ -1208,16 +1176,14 @@ async def on_message(message):
             try:
 
                 aviso = await message.channel.send(
-                    f"👋 Bem-vindo de volta, {message.author.mention}!\n"
+                    f"👋 Bem-vindo de volta, "
+                    f"{message.author.mention}!\n"
                     f"Seu AFK foi removido."
                 )
 
-                await asyncio.sleep(
-                    5
-                )
+                await asyncio.sleep(5)
 
                 try:
-
                     await aviso.delete()
 
                 except discord.HTTPException:
@@ -1226,9 +1192,9 @@ async def on_message(message):
             except discord.HTTPException:
                 pass
 
-    # -----------------------------------------------------
-    # AVISA MENCIONADO AFK
-    # -----------------------------------------------------
+    # =====================================================
+    # AVISA AFK
+    # =====================================================
 
     if guild_id:
 
@@ -1266,7 +1232,85 @@ async def on_message(message):
 
 
 # =========================================================
-# EDITOR DE EMBED
+# .POST
+# =========================================================
+
+@bot.command(name="post")
+@commands.has_permissions(manage_messages=True)
+async def post_command(ctx):
+
+    if ctx.guild is None:
+
+        await ctx.send(
+            "❌ O comando `.post` só pode ser usado "
+            "dentro de um servidor."
+        )
+
+        return
+
+    canal_id = str(
+        ctx.channel.id
+    )
+
+    # Já está ativado
+    if canal_id in post_channels:
+
+        await ctx.send(
+            "📸 **O Instagram já está ativado neste canal!**\n\n"
+            "Envie uma imagem para criar uma publicação."
+        )
+
+        return
+
+    # Salva o canal
+    post_channels[canal_id] = {
+        "guild_id": str(
+            ctx.guild.id
+        ),
+        "ativado_por": str(
+            ctx.author.id
+        ),
+        "data": int(
+            time.time()
+        )
+    }
+
+    salvar_json(
+        POST_CHANNELS_FILE,
+        post_channels
+    )
+
+    embed = discord.Embed(
+        title="📸 Instagram ativado!",
+        description=(
+            "Este canal agora funciona como o "
+            "**Instagram da comunidade**.\n\n"
+            "📷 **Como publicar:**\n"
+            "Envie uma imagem neste canal.\n\n"
+            "❤️ Os membros poderão curtir.\n"
+            "💬 Os membros poderão comentar.\n\n"
+            f"👤 Ativado por {ctx.author.mention}"
+        ),
+        color=discord.Color.blurple()
+    )
+
+    embed.set_thumbnail(
+        url=ctx.guild.icon.url
+        if ctx.guild.icon
+        else discord.Embed.Empty
+    )
+
+    embed.set_footer(
+        text="T7 | Community • Instagram"
+    )
+
+    await ctx.send(
+        embed=embed
+    )
+
+
+# =========================================================
+# .EMBED
 # =========================================================
 
 class EmbedEditorView(discord.ui.View):
@@ -1278,11 +1322,17 @@ class EmbedEditorView(discord.ui.View):
         )
 
         self.autor = autor
+
         self.titulo = ""
+
         self.descricao = ""
+
         self.imagem = ""
+
         self.thumbnail = ""
+
         self.cor = discord.Color.blurple()
+
         self.rodape = ""
 
     async def verificar_usuario(
@@ -1336,12 +1386,18 @@ class EmbedEditorView(discord.ui.View):
             title="🎨 Editor de Embed",
             description=(
                 "Use os botões abaixo para montar seu Embed.\n\n"
-                f"**Título:** {self.titulo if self.titulo else 'Não definido'}\n"
-                f"**Descrição:** {'Definida' if self.descricao else 'Não definida'}\n"
-                f"**Imagem:** {'✅' if self.imagem else '❌'}\n"
-                f"**Thumbnail:** {'✅' if self.thumbnail else '❌'}\n"
-                f"**Cor:** `#{self.cor.value:06X}`\n"
-                f"**Rodapé:** {self.rodape if self.rodape else 'Não definido'}"
+                f"**Título:** "
+                f"{self.titulo if self.titulo else 'Não definido'}\n"
+                f"**Descrição:** "
+                f"{'Definida' if self.descricao else 'Não definida'}\n"
+                f"**Imagem:** "
+                f"{'✅' if self.imagem else '❌'}\n"
+                f"**Thumbnail:** "
+                f"{'✅' if self.thumbnail else '❌'}\n"
+                f"**Cor:** "
+                f"`#{self.cor.value:06X}`\n"
+                f"**Rodapé:** "
+                f"{self.rodape if self.rodape else 'Não definido'}"
             ),
             color=self.cor
         )
@@ -1510,6 +1566,7 @@ class EmbedEditorView(discord.ui.View):
         embed = self.criar_embed()
 
         if not self.titulo and not self.descricao:
+
             embed.description = (
                 "⚠️ Seu Embed ainda está vazio."
             )
@@ -1890,7 +1947,8 @@ async def banner(
     if usuario.banner is None:
 
         await ctx.send(
-            f"❌ **{membro.display_name}** não possui um banner."
+            f"❌ **{membro.display_name}** "
+            f"não possui um banner."
         )
 
         return
@@ -2046,7 +2104,8 @@ async def limpar_mensagens(ctx):
     if not permissoes.manage_messages:
 
         await ctx.send(
-            "❌ Eu preciso da permissão **Gerenciar Mensagens** neste canal."
+            "❌ Eu preciso da permissão "
+            "**Gerenciar Mensagens** neste canal."
         )
 
         return
@@ -2076,7 +2135,8 @@ async def limpar_mensagens(ctx):
             )
 
             await ctx.send(
-                f"⏳ {ctx.author.mention}, aguarde **{tempo}** para usar `.cl` novamente."
+                f"⏳ {ctx.author.mention}, aguarde "
+                f"**{tempo}** para usar `.cl` novamente."
             )
 
             return
@@ -2139,6 +2199,7 @@ async def limpar_mensagens(ctx):
         }
 
         def verificar(mensagem):
+
             return mensagem.id in ids_mensagens
 
         if cl_cancelar.get(
@@ -2166,7 +2227,8 @@ async def limpar_mensagens(ctx):
                 )
 
                 print(
-                    f"⚠️ Rate limit no CL. Aguardando {retry_after:.2f}s."
+                    f"⚠️ Rate limit no CL. "
+                    f"Aguardando {retry_after:.2f}s."
                 )
 
                 await asyncio.sleep(
@@ -2214,7 +2276,8 @@ async def limpar_mensagens(ctx):
     except discord.Forbidden:
 
         await ctx.send(
-            "❌ Não tenho permissão para apagar mensagens neste canal."
+            "❌ Não tenho permissão "
+            "para apagar mensagens neste canal."
         )
 
     except discord.HTTPException as erro:
@@ -2224,7 +2287,8 @@ async def limpar_mensagens(ctx):
         )
 
         await ctx.send(
-            "❌ O Discord recusou a operação. Tente novamente mais tarde."
+            "❌ O Discord recusou a operação. "
+            "Tente novamente mais tarde."
         )
 
     except Exception as erro:
@@ -2309,7 +2373,8 @@ async def nuke(ctx):
     except discord.Forbidden:
 
         await ctx.send(
-            "❌ Preciso da permissão **Gerenciar Canais**."
+            "❌ Preciso da permissão "
+            "**Gerenciar Canais**."
         )
 
     except discord.HTTPException as erro:
@@ -2405,10 +2470,7 @@ async def rank(
 
         posicao = 0
 
-        for i, (
-            uid,
-            quantidade
-        ) in enumerate(
+        for i, (uid, quantidade) in enumerate(
             lista,
             start=1
         ):
@@ -2445,7 +2507,10 @@ async def rank(
         )
 
         embed.set_footer(
-            text="Ranking semanal • Reset toda segunda às 00:00"
+            text=(
+                "Ranking semanal • "
+                "Reset toda segunda às 00:00"
+            )
         )
 
         await ctx.send(
@@ -2463,7 +2528,8 @@ async def rank(
     if not lista:
 
         await ctx.send(
-            "📊 Ainda não existem mensagens registradas nesta semana."
+            "📊 Ainda não existem mensagens "
+            "registradas nesta semana."
         )
 
         return
@@ -2514,7 +2580,8 @@ async def rank(
             destaque = ""
 
         linhas.append(
-            f"{medalha} **{nome}**{destaque} — 💬 {quantidade}"
+            f"{medalha} **{nome}**"
+            f"{destaque} — 💬 {quantidade}"
         )
 
     embed.description = (
@@ -2533,7 +2600,7 @@ async def rank(
 
 
 # =========================================================
-# MENU DO ADD FIG
+# MENU ADD FIG
 # =========================================================
 
 class AddFigView(discord.ui.View):
@@ -2554,7 +2621,8 @@ class AddFigView(discord.ui.View):
         if interaction.user.id != self.autor.id:
 
             await interaction.response.send_message(
-                "❌ Apenas quem abriu o menu pode usar estas opções.",
+                "❌ Apenas quem abriu o menu "
+                "pode usar estas opções.",
                 ephemeral=True
             )
 
@@ -2682,7 +2750,8 @@ class AddFigURLModal(discord.ui.Modal):
         if not permissoes.manage_emojis:
 
             await interaction.response.send_message(
-                "❌ Eu preciso da permissão **Gerenciar Expressões**.",
+                "❌ Eu preciso da permissão "
+                "**Gerenciar Expressões**.",
                 ephemeral=True
             )
 
@@ -2737,7 +2806,8 @@ class AddFigURLModal(discord.ui.Modal):
         except discord.Forbidden:
 
             await interaction.followup.send(
-                "❌ Não tenho permissão para adicionar figurinhas neste servidor.",
+                "❌ Não tenho permissão para adicionar "
+                "figurinhas neste servidor.",
                 ephemeral=True
             )
 
@@ -2778,7 +2848,8 @@ async def addfig(ctx):
     embed = discord.Embed(
         title="🖼️ Adicionar Figurinha",
         description=(
-            "Use o menu abaixo para adicionar uma figurinha rapidamente.\n\n"
+            "Use o menu abaixo para adicionar "
+            "uma figurinha rapidamente.\n\n"
             "🔗 **Adicionar por URL**\n"
             "Informe a URL direta da imagem da figurinha."
         ),
@@ -2809,7 +2880,8 @@ async def adicionar_emoji(
     if emoji is None:
 
         await ctx.send(
-            "❌ Você precisa informar um emoji personalizado.\n\n"
+            "❌ Você precisa informar "
+            "um emoji personalizado.\n\n"
             "**Exemplo:**\n"
             "`.addemoji <:emoji:123456789>`\n\n"
             "Animado:\n"
@@ -2821,7 +2893,8 @@ async def adicionar_emoji(
     if ctx.guild is None:
 
         await ctx.send(
-            "❌ Este comando só pode ser usado dentro de um servidor."
+            "❌ Este comando só pode ser usado "
+            "dentro de um servidor."
         )
 
         return
@@ -2833,7 +2906,8 @@ async def adicionar_emoji(
     if not permissoes.manage_emojis:
 
         await ctx.send(
-            "❌ Eu não tenho a permissão **Gerenciar Expressões**."
+            "❌ Eu não tenho a permissão "
+            "**Gerenciar Expressões**."
         )
 
         return
@@ -2947,7 +3021,8 @@ async def ajuda(ctx):
     embed = discord.Embed(
         title="📚 Central de Comandos",
         description=(
-            "Confira os comandos disponíveis no T7 | Community."
+            "Confira os comandos disponíveis "
+            "no T7 | Community."
         ),
         color=discord.Color.blurple()
     )
@@ -2956,6 +3031,17 @@ async def ajuda(ctx):
         name="🎨 EMBEDS",
         value=(
             "`.embed` — Editor visual de Embed."
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="📸 INSTAGRAM",
+        value=(
+            "`.post` — Ativa o Instagram neste canal.\n"
+            "📷 Depois envie uma imagem para criar um post.\n"
+            "❤️ Curtir publicações.\n"
+            "💬 Comentar publicações."
         ),
         inline=False
     )
@@ -3011,18 +3097,6 @@ async def ajuda(ctx):
     )
 
     embed.add_field(
-        name="📸 INSTAGRAM",
-        value=(
-            "`.post` — Criar uma publicação neste canal.\n"
-            "📸 Depois de usar `.post`, envie uma imagem.\n"
-            "❤️ Curtir uma publicação.\n"
-            "💬 Comentar uma publicação.\n"
-            "💾 Curtidas e comentários são salvos."
-        ),
-        inline=False
-    )
-
-    embed.add_field(
         name="😀 EMOJIS / FIGURINHAS",
         value=(
             "`.addemoji <:emoji:ID>` — Adiciona emoji\n"
@@ -3070,7 +3144,8 @@ async def on_command_error(
     ):
 
         await ctx.send(
-            "❌ Você não possui permissão para usar este comando."
+            "❌ Você não possui permissão "
+            "para usar este comando."
         )
 
         return
@@ -3103,7 +3178,8 @@ async def on_command_error(
     ):
 
         await ctx.send(
-            "❌ Está faltando um argumento nesse comando."
+            "❌ Está faltando um argumento "
+            "nesse comando."
         )
 
         return
@@ -3114,7 +3190,8 @@ async def on_command_error(
     ):
 
         await ctx.send(
-            "❌ Valor inválido. Confira o formato do comando."
+            "❌ Valor inválido. "
+            "Confira o formato do comando."
         )
 
         return
