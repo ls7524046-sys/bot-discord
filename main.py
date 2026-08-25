@@ -19,26 +19,13 @@ from discord.ext import commands, tasks
 TOKEN = os.environ.get("DISCORD_TOKEN")
 PREFIXO = "."
 
-# Canal de BOT ONLINE + DESTAQUE DA SEMANA
+# Canal de BOT ONLINE
 RANK_CHANNEL_ID = 1541685886377533500
-
-# Cargo entregue automaticamente ao TOP 1
-TOP1_ROLE_ID = 1541801906782081154
-
-# =========================================================
-# IMPORTANTE:
-# NÃO EXISTE MAIS FEED_CHANNEL_ID
-#
-# O Instagram será ativado com:
-#
-# .post
-#
-# no canal desejado.
-# =========================================================
 
 # Fuso horário do Brasil
 TIMEZONE = ZoneInfo("America/Sao_Paulo")
 
+# Quantidade exibida no ranking
 TOP_LIMIT = 10
 
 # Arquivos
@@ -46,7 +33,6 @@ RANK_FILE = "rank.json"
 RANK_META_FILE = "rank_meta.json"
 AFK_FILE = "afk.json"
 FEED_FILE = "feed.json"
-POST_CHANNELS_FILE = "post_channels.json"
 
 
 # =========================================================
@@ -74,12 +60,6 @@ rank_mensagens = {}
 afk_usuarios = {}
 feed_posts = {}
 
-# Canais que possuem Instagram ativado
-post_channels = {}
-
-destaques_anunciados = {}
-top1_atual = {}
-
 cl_ativo = {}
 cl_cancelar = {}
 cl_cooldown = {}
@@ -87,6 +67,7 @@ cl_cooldown = {}
 CL_COOLDOWN = 600
 
 online_enviado = False
+
 reset_lock = asyncio.Lock()
 
 
@@ -99,17 +80,28 @@ def carregar_json(arquivo):
         return {}
 
     try:
-        with open(arquivo, "r", encoding="utf-8") as f:
+        with open(
+            arquivo,
+            "r",
+            encoding="utf-8"
+        ) as f:
             return json.load(f)
 
     except Exception as erro:
-        print(f"⚠️ Erro ao carregar {arquivo}: {erro}")
+        print(
+            f"⚠️ Erro ao carregar {arquivo}: {erro}"
+        )
+
         return {}
 
 
 def salvar_json(arquivo, dados):
     try:
-        with open(arquivo, "w", encoding="utf-8") as f:
+        with open(
+            arquivo,
+            "w",
+            encoding="utf-8"
+        ) as f:
             json.dump(
                 dados,
                 f,
@@ -118,31 +110,29 @@ def salvar_json(arquivo, dados):
             )
 
     except Exception as erro:
-        print(f"⚠️ Erro ao salvar {arquivo}: {erro}")
+        print(
+            f"⚠️ Erro ao salvar {arquivo}: {erro}"
+        )
 
 
 # =========================================================
 # CARREGAR DADOS
 # =========================================================
 
-rank_mensagens = carregar_json(RANK_FILE)
-
-afk_usuarios = carregar_json(AFK_FILE)
-
-feed_posts = carregar_json(FEED_FILE)
-
-post_channels = carregar_json(POST_CHANNELS_FILE)
-
-rank_meta = carregar_json(RANK_META_FILE)
-
-destaques_anunciados = rank_meta.get(
-    "destaques_anunciados",
-    {}
+rank_mensagens = carregar_json(
+    RANK_FILE
 )
 
-top1_atual = rank_meta.get(
-    "top1_atual",
-    {}
+afk_usuarios = carregar_json(
+    AFK_FILE
+)
+
+feed_posts = carregar_json(
+    FEED_FILE
+)
+
+rank_meta = carregar_json(
+    RANK_META_FILE
 )
 
 semana_salva = rank_meta.get(
@@ -159,7 +149,8 @@ def semana_atual():
     agora = datetime.now(TIMEZONE)
 
     segunda = agora.date().fromordinal(
-        agora.date().toordinal() - agora.weekday()
+        agora.date().toordinal()
+        - agora.weekday()
     )
 
     return segunda.isoformat()
@@ -169,23 +160,15 @@ def salvar_rank_meta():
     salvar_json(
         RANK_META_FILE,
         {
-            "semana": semana_atual(),
-            "destaques_anunciados": destaques_anunciados,
-            "top1_atual": top1_atual
+            "semana": semana_atual()
         }
     )
 
 
 def resetar_rank_semanal():
     global rank_mensagens
-    global destaques_anunciados
-    global top1_atual
 
     rank_mensagens = {}
-
-    destaques_anunciados = {}
-
-    top1_atual = {}
 
     salvar_json(
         RANK_FILE,
@@ -194,193 +177,9 @@ def resetar_rank_semanal():
 
     salvar_rank_meta()
 
-    print("🔄 Ranking semanal resetado.")
-
-
-async def enviar_aviso_destaque(guild, membro):
-    canal = bot.get_channel(RANK_CHANNEL_ID)
-
-    if canal is None:
-        try:
-            canal = await bot.fetch_channel(
-                RANK_CHANNEL_ID
-            )
-
-        except Exception as erro:
-            print(
-                f"⚠️ Não consegui encontrar "
-                f"o canal de destaque: {erro}"
-            )
-            return
-
-    try:
-        embed = discord.Embed(
-            title="🏆 Destaque da Semana",
-            description=(
-                f"🌟 **{membro.display_name}** agora é "
-                f"**destaque da semana do nosso servidor!**\n\n"
-                f"Parabéns por entrar no "
-                f"**Top {TOP_LIMIT}**! 🎉"
-            ),
-            color=discord.Color.gold()
-        )
-
-        embed.set_thumbnail(
-            url=membro.display_avatar.url
-        )
-
-        embed.set_footer(
-            text=f"Ranking semanal • {guild.name}"
-        )
-
-        await canal.send(
-            embed=embed
-        )
-
-    except discord.Forbidden:
-        print(
-            "⚠️ Não tenho permissão para enviar "
-            "mensagens no canal de destaque."
-        )
-
-    except discord.HTTPException as erro:
-        print(
-            f"⚠️ Erro ao enviar destaque: {erro}"
-        )
-
-
-async def atualizar_top1(guild, lista):
-    if not lista:
-        return
-
-    guild_id = str(guild.id)
-
-    novo_top1_id = str(
-        lista[0][0]
+    print(
+        "🔄 Ranking semanal resetado."
     )
-
-    antigo_top1_id = top1_atual.get(
-        guild_id
-    )
-
-    if antigo_top1_id == novo_top1_id:
-        return
-
-    cargo = guild.get_role(
-        TOP1_ROLE_ID
-    )
-
-    if cargo is None:
-
-        print(
-            f"⚠️ Cargo TOP 1 {TOP1_ROLE_ID} "
-            f"não foi encontrado em {guild.name}."
-        )
-
-    elif guild.me is None:
-
-        print(
-            "⚠️ Não consegui identificar "
-            "o membro do bot."
-        )
-
-    elif cargo >= guild.me.top_role:
-
-        print(
-            "⚠️ Coloque o cargo do bot acima "
-            "do cargo de destaque."
-        )
-
-    else:
-
-        if antigo_top1_id:
-
-            antigo_membro = guild.get_member(
-                int(antigo_top1_id)
-            )
-
-            if antigo_membro and cargo in antigo_membro.roles:
-
-                try:
-                    await antigo_membro.remove_roles(
-                        cargo,
-                        reason="Novo TOP 1 semanal"
-                    )
-
-                except discord.Forbidden:
-                    print(
-                        "⚠️ Não consegui remover "
-                        "o cargo do antigo TOP 1."
-                    )
-
-                except discord.HTTPException as erro:
-                    print(
-                        f"⚠️ Erro ao remover cargo: {erro}"
-                    )
-
-        novo_membro = guild.get_member(
-            int(novo_top1_id)
-        )
-
-        if novo_membro:
-
-            try:
-                await novo_membro.add_roles(
-                    cargo,
-                    reason="Novo TOP 1 semanal"
-                )
-
-                print(
-                    f"👑 {novo_membro} agora é TOP 1."
-                )
-
-            except discord.Forbidden:
-                print(
-                    "⚠️ Não tenho permissão "
-                    "para entregar o cargo."
-                )
-
-            except discord.HTTPException as erro:
-                print(
-                    f"⚠️ Erro ao entregar cargo: {erro}"
-                )
-
-    top1_atual[guild_id] = novo_top1_id
-
-    salvar_rank_meta()
-
-    novo_membro = guild.get_member(
-        int(novo_top1_id)
-    )
-
-    if novo_membro:
-
-        canal = bot.get_channel(
-            RANK_CHANNEL_ID
-        )
-
-        if canal is None:
-
-            try:
-                canal = await bot.fetch_channel(
-                    RANK_CHANNEL_ID
-                )
-
-            except Exception:
-                canal = None
-
-        if canal:
-
-            try:
-                await canal.send(
-                    f"👑 **{novo_membro.mention} agora é "
-                    f"o TOP 1 da semana do nosso servidor!** 🏆"
-                )
-
-            except Exception as erro:
-                print(
-                    f"⚠️ Erro ao avisar novo TOP 1: {erro}"
-                )
 
 
 async def verificar_ranking(guild, user_id):
@@ -399,46 +198,6 @@ async def verificar_ranking(guild, user_id):
 
     if not lista:
         return
-
-    posicao = None
-
-    for i, (uid, _) in enumerate(
-        lista,
-        start=1
-    ):
-
-        if uid == str(user_id):
-            posicao = i
-            break
-
-    if posicao is not None and posicao <= TOP_LIMIT:
-
-        if guild_id not in destaques_anunciados:
-            destaques_anunciados[guild_id] = []
-
-        if str(user_id) not in destaques_anunciados[guild_id]:
-
-            membro = guild.get_member(
-                int(user_id)
-            )
-
-            if membro:
-
-                destaques_anunciados[guild_id].append(
-                    str(user_id)
-                )
-
-                salvar_rank_meta()
-
-                await enviar_aviso_destaque(
-                    guild,
-                    membro
-                )
-
-    await atualizar_top1(
-        guild,
-        lista
-    )
 
 
 async def verificar_e_resetar_semana():
@@ -473,16 +232,13 @@ async def tarefa_rank_semanal():
 
 @tarefa_rank_semanal.before_loop
 async def antes_do_rank_semanal():
+
     await bot.wait_until_ready()
 
 
 # =========================================================
 # INSTAGRAM / FEED
 # =========================================================
-
-def canal_e_instagram(channel_id):
-    return str(channel_id) in post_channels
-
 
 def criar_embed_feed(post):
 
@@ -509,6 +265,11 @@ def criar_embed_feed(post):
         []
     )
 
+    legenda = post.get(
+        "legenda",
+        ""
+    )
+
     embed = discord.Embed(
         color=discord.Color.blurple(),
         timestamp=datetime.fromtimestamp(
@@ -532,6 +293,10 @@ def criar_embed_feed(post):
         embed.set_author(
             name=autor_nome
         )
+
+    if legenda:
+
+        embed.description = legenda
 
     if imagem:
 
@@ -573,16 +338,19 @@ def criar_embed_feed(post):
                 f"**{nome}**: {texto}"
             )
 
-        texto = "\n".join(
+        texto_comentarios = "\n".join(
             linhas
         )
 
-        if len(texto) > 1024:
-            texto = texto[-1024:]
+        if len(texto_comentarios) > 1024:
+
+            texto_comentarios = (
+                texto_comentarios[-1024:]
+            )
 
         embed.add_field(
             name="💬 Comentários recentes",
-            value=texto,
+            value=texto_comentarios,
             inline=False
         )
 
@@ -609,6 +377,11 @@ class FeedView(discord.ui.View):
             post_id
         )
 
+
+    # -----------------------------------------------------
+    # CURTIR
+    # -----------------------------------------------------
+
     @discord.ui.button(
         label="Curtir",
         emoji="❤️",
@@ -632,7 +405,9 @@ class FeedView(discord.ui.View):
 
             return
 
-        post = feed_posts[post_id]
+        post = feed_posts[
+            post_id
+        ]
 
         usuario_id = str(
             interaction.user.id
@@ -670,8 +445,10 @@ class FeedView(discord.ui.View):
 
         try:
 
-            mensagem_post = await interaction.channel.fetch_message(
-                int(post["message_id"])
+            mensagem_post = (
+                await interaction.channel.fetch_message(
+                    int(post["message_id"])
+                )
             )
 
             await mensagem_post.edit(
@@ -684,6 +461,7 @@ class FeedView(discord.ui.View):
             )
 
         except discord.NotFound:
+
             pass
 
         except discord.HTTPException as erro:
@@ -696,6 +474,11 @@ class FeedView(discord.ui.View):
             mensagem,
             ephemeral=True
         )
+
+
+    # -----------------------------------------------------
+    # COMENTAR
+    # -----------------------------------------------------
 
     @discord.ui.button(
         label="Comentar",
@@ -729,9 +512,14 @@ class FeedView(discord.ui.View):
 # MODAL DE COMENTÁRIO
 # =========================================================
 
-class ComentarioFeedModal(discord.ui.Modal):
+class ComentarioFeedModal(
+    discord.ui.Modal
+):
 
-    def __init__(self, post_id):
+    def __init__(
+        self,
+        post_id
+    ):
 
         super().__init__(
             title="💬 Comentar no post"
@@ -741,18 +529,23 @@ class ComentarioFeedModal(discord.ui.Modal):
             post_id
         )
 
-        self.comentario = discord.ui.TextInput(
-            label="Seu comentário",
-            placeholder="Escreva seu comentário...",
-            style=discord.TextStyle.paragraph,
-            min_length=1,
-            max_length=500,
-            required=True
+        self.comentario = (
+            discord.ui.TextInput(
+                label="Seu comentário",
+                placeholder=(
+                    "Escreva seu comentário..."
+                ),
+                style=discord.TextStyle.paragraph,
+                min_length=1,
+                max_length=500,
+                required=True
+            )
         )
 
         self.add_item(
             self.comentario
         )
+
 
     async def on_submit(
         self,
@@ -782,10 +575,22 @@ class ComentarioFeedModal(discord.ui.Modal):
                 "user_id": str(
                     interaction.user.id
                 ),
-                "nome": interaction.user.display_name,
-                "avatar": interaction.user.display_avatar.url,
-                "texto": self.comentario.value.strip(),
-                "data": int(time.time())
+
+                "nome": (
+                    interaction.user.display_name
+                ),
+
+                "avatar": (
+                    interaction.user.display_avatar.url
+                ),
+
+                "texto": (
+                    self.comentario.value.strip()
+                ),
+
+                "data": int(
+                    time.time()
+                )
             }
         )
 
@@ -796,8 +601,10 @@ class ComentarioFeedModal(discord.ui.Modal):
 
         try:
 
-            mensagem_post = await interaction.channel.fetch_message(
-                int(post["message_id"])
+            mensagem_post = (
+                await interaction.channel.fetch_message(
+                    int(post["message_id"])
+                )
             )
 
             await mensagem_post.edit(
@@ -810,6 +617,7 @@ class ComentarioFeedModal(discord.ui.Modal):
             )
 
         except discord.NotFound:
+
             pass
 
         except discord.HTTPException as erro:
@@ -825,24 +633,28 @@ class ComentarioFeedModal(discord.ui.Modal):
 
 
 # =========================================================
-# PROCESSAR POST
+# .POST
 # =========================================================
 
-async def processar_post_feed(message):
+@bot.command(name="post")
+async def post_instagram(ctx):
 
-    # Só processa canais ativados pelo .post
-    if not canal_e_instagram(
-        message.channel.id
-    ):
-        return False
+    if ctx.guild is None:
 
-    # Ignora mensagens sem anexos
-    if not message.attachments:
-        return False
+        await ctx.send(
+            "❌ O comando `.post` só pode ser usado dentro de um servidor."
+        )
+
+        return
+
+    # -----------------------------------------------------
+    # PROCURA UMA IMAGEM NAS MENSAGENS RECENTES
+    # -----------------------------------------------------
 
     imagem = None
 
-    for attachment in message.attachments:
+    # Primeiro verifica a própria mensagem do comando
+    for attachment in ctx.message.attachments:
 
         nome = attachment.filename.lower()
 
@@ -860,44 +672,137 @@ async def processar_post_feed(message):
 
             break
 
-    # Não é imagem
+
+    # -----------------------------------------------------
+    # SE NÃO TIVER IMAGEM NO COMANDO,
+    # PROCURA A ÚLTIMA IMAGEM ENVIADA PELO USUÁRIO
+    # -----------------------------------------------------
+
     if imagem is None:
-        return False
-
-    post_id = str(
-        message.id
-    )
-
-    # Evita duplicação
-    if post_id in feed_posts:
 
         try:
-            await message.delete()
 
-        except Exception:
-            pass
+            async for mensagem in ctx.channel.history(
+                limit=20
+            ):
 
-        return True
+                if mensagem.author.id != ctx.author.id:
+                    continue
+
+                if mensagem.id == ctx.message.id:
+                    continue
+
+                for attachment in mensagem.attachments:
+
+                    nome = attachment.filename.lower()
+
+                    if nome.endswith(
+                        (
+                            ".png",
+                            ".jpg",
+                            ".jpeg",
+                            ".gif",
+                            ".webp"
+                        )
+                    ):
+
+                        imagem = attachment
+
+                        break
+
+                if imagem:
+                    break
+
+        except discord.HTTPException as erro:
+
+            print(
+                f"⚠️ Erro ao procurar imagem: {erro}"
+            )
+
+
+    # -----------------------------------------------------
+    # SEM IMAGEM
+    # -----------------------------------------------------
+
+    if imagem is None:
+
+        await ctx.send(
+            "❌ Você precisa enviar uma imagem junto do `.post`.\n\n"
+            "**Exemplo:**\n"
+            "Envie uma imagem e escreva:\n"
+            "`.post Minha foto nova!`"
+        )
+
+        return
+
+
+    # -----------------------------------------------------
+    # LEGENDA
+    # -----------------------------------------------------
+
+    legenda = (
+        ctx.message.content
+        .replace(
+            ".post",
+            "",
+            1
+        )
+        .strip()
+    )
+
+    # -----------------------------------------------------
+    # CRIA ID ÚNICO DO POST
+    # -----------------------------------------------------
+
+    post_id = str(
+        time.time_ns()
+    )
+
+    # -----------------------------------------------------
+    # DADOS DO POST
+    # -----------------------------------------------------
 
     post = {
+
         "message_id": None,
-        "autor_id": str(
-            message.author.id
-        ),
-        "autor_nome": message.author.display_name,
-        "autor_avatar": message.author.display_avatar.url,
-        "imagem": imagem.url,
-        "curtidas": [],
-        "comentarios": [],
-        "data": int(time.time()),
+
         "canal_id": str(
-            message.channel.id
+            ctx.channel.id
+        ),
+
+        "autor_id": str(
+            ctx.author.id
+        ),
+
+        "autor_nome": (
+            ctx.author.display_name
+        ),
+
+        "autor_avatar": (
+            ctx.author.display_avatar.url
+        ),
+
+        "imagem": imagem.url,
+
+        "legenda": legenda,
+
+        "curtidas": [],
+
+        "comentarios": [],
+
+        "data": int(
+            time.time()
         )
     }
 
+
+    # -----------------------------------------------------
+    # ENVIA POST
+    # -----------------------------------------------------
+
     try:
 
-        novo_post = await message.channel.send(
+        novo_post = await ctx.channel.send(
             embed=criar_embed_feed(
                 post
             ),
@@ -908,56 +813,66 @@ async def processar_post_feed(message):
 
         post["message_id"] = novo_post.id
 
-        feed_posts[post_id] = post
+        feed_posts[
+            post_id
+        ] = post
 
         salvar_json(
             FEED_FILE,
             feed_posts
         )
 
+
+        # -------------------------------------------------
+        # APAGA A MENSAGEM ORIGINAL DO .POST
+        # -------------------------------------------------
+
         try:
 
-            await message.delete()
+            await ctx.message.delete()
 
         except discord.Forbidden:
 
             print(
-                "⚠️ Não consigo apagar a mensagem "
-                "original do Instagram."
+                "⚠️ Não consigo apagar a mensagem do .post."
             )
 
         except discord.HTTPException as erro:
 
             print(
-                f"⚠️ Erro ao apagar mensagem original: {erro}"
+                f"⚠️ Erro ao apagar comando .post: {erro}"
             )
 
-        return True
 
     except discord.Forbidden:
 
-        print(
-            "⚠️ Não tenho permissão para enviar "
-            "mensagens neste Instagram."
+        await ctx.send(
+            "❌ Não tenho permissão para enviar mensagens neste canal."
         )
 
     except discord.HTTPException as erro:
 
         print(
-            f"⚠️ Erro ao criar post do Instagram: {erro}"
+            f"⚠️ Erro ao criar post: {erro}"
+        )
+
+        await ctx.send(
+            "❌ Não foi possível criar o post."
         )
 
     except Exception as erro:
 
         print(
-            f"⚠️ Erro no sistema de Instagram: {erro}"
+            f"⚠️ Erro no sistema Instagram: {erro}"
         )
 
-    return False
+        await ctx.send(
+            "❌ Ocorreu um erro ao criar o post."
+        )
 
 
 # =========================================================
-# REATIVAR BOTÕES
+# RECARREGAR BOTÕES DO INSTAGRAM
 # =========================================================
 
 async def registrar_views_feed():
@@ -1017,18 +932,26 @@ async def on_ready():
     )
 
     print(
-        f"📸 Instagram: ativado por .post"
+        "📸 Instagram: .post"
     )
 
     print("=" * 50)
 
+
     await verificar_e_resetar_semana()
 
+
     await registrar_views_feed()
+
 
     if not tarefa_rank_semanal.is_running():
 
         tarefa_rank_semanal.start()
+
+
+    # -----------------------------------------------------
+    # MENSAGEM BOT ONLINE
+    # -----------------------------------------------------
 
     if not online_enviado:
 
@@ -1052,16 +975,19 @@ async def on_ready():
 
                 canal = None
 
+
         if canal:
 
             try:
 
                 embed = discord.Embed(
                     title="🟢 BOT ONLINE",
+
                     description=(
                         f"**{bot.user.name}** está online "
                         "e funcionando normalmente!"
                     ),
+
                     color=discord.Color.green()
                 )
 
@@ -1078,8 +1004,8 @@ async def on_ready():
             except discord.Forbidden:
 
                 print(
-                    "⚠️ Não tenho permissão "
-                    "para enviar a mensagem ONLINE."
+                    "⚠️ Não tenho permissão para enviar "
+                    "a mensagem ONLINE."
                 )
 
             except discord.HTTPException as erro:
@@ -1090,7 +1016,7 @@ async def on_ready():
 
 
 # =========================================================
-# CONTADOR / AFK / INSTAGRAM
+# ON MESSAGE
 # =========================================================
 
 @bot.event
@@ -1099,20 +1025,6 @@ async def on_message(message):
     if message.author.bot:
         return
 
-    # =====================================================
-    # INSTAGRAM
-    # =====================================================
-
-    if canal_e_instagram(
-        message.channel.id
-    ):
-
-        foi_post = await processar_post_feed(
-            message
-        )
-
-        if foi_post:
-            return
 
     guild_id = (
         str(message.guild.id)
@@ -1124,6 +1036,7 @@ async def on_message(message):
         message.author.id
     )
 
+
     # =====================================================
     # RANK
     # =====================================================
@@ -1132,25 +1045,39 @@ async def on_message(message):
 
         await verificar_e_resetar_semana()
 
+
         if guild_id not in rank_mensagens:
 
-            rank_mensagens[guild_id] = {}
+            rank_mensagens[
+                guild_id
+            ] = {}
 
-        if user_id not in rank_mensagens[guild_id]:
 
-            rank_mensagens[guild_id][user_id] = 0
+        if user_id not in rank_mensagens[
+            guild_id
+        ]:
 
-        rank_mensagens[guild_id][user_id] += 1
+            rank_mensagens[
+                guild_id
+            ][user_id] = 0
+
+
+        rank_mensagens[
+            guild_id
+        ][user_id] += 1
+
 
         salvar_json(
             RANK_FILE,
             rank_mensagens
         )
 
+
         await verificar_ranking(
             message.guild,
             message.author.id
         )
+
 
     # =====================================================
     # REMOVE AFK
@@ -1184,16 +1111,20 @@ async def on_message(message):
                 await asyncio.sleep(5)
 
                 try:
+
                     await aviso.delete()
 
                 except discord.HTTPException:
+
                     pass
 
             except discord.HTTPException:
+
                 pass
 
+
     # =====================================================
-    # AVISA AFK
+    # AVISA USUÁRIO AFK
     # =====================================================
 
     if guild_id:
@@ -1221,10 +1152,16 @@ async def on_message(message):
                 )
 
                 await message.channel.send(
-                    f"💤 **{membro.display_name}** está AFK.\n"
+                    f"💤 **{membro.display_name}** "
+                    f"está AFK.\n"
                     f"📝 Motivo: **{motivo}**\n"
                     f"⏰ Desde: <t:{desde}:R>"
                 )
+
+
+    # =====================================================
+    # PROCESSA COMANDOS
+    # =====================================================
 
     await bot.process_commands(
         message
@@ -1232,88 +1169,12 @@ async def on_message(message):
 
 
 # =========================================================
-# .POST
+# EDITOR DE EMBED
 # =========================================================
 
-@bot.command(name="post")
-@commands.has_permissions(manage_messages=True)
-async def post_command(ctx):
-
-    if ctx.guild is None:
-
-        await ctx.send(
-            "❌ O comando `.post` só pode ser usado "
-            "dentro de um servidor."
-        )
-
-        return
-
-    canal_id = str(
-        ctx.channel.id
-    )
-
-    # Já está ativado
-    if canal_id in post_channels:
-
-        await ctx.send(
-            "📸 **O Instagram já está ativado neste canal!**\n\n"
-            "Envie uma imagem para criar uma publicação."
-        )
-
-        return
-
-    # Salva o canal
-    post_channels[canal_id] = {
-        "guild_id": str(
-            ctx.guild.id
-        ),
-        "ativado_por": str(
-            ctx.author.id
-        ),
-        "data": int(
-            time.time()
-        )
-    }
-
-    salvar_json(
-        POST_CHANNELS_FILE,
-        post_channels
-    )
-
-    embed = discord.Embed(
-        title="📸 Instagram ativado!",
-        description=(
-            "Este canal agora funciona como o "
-            "**Instagram da comunidade**.\n\n"
-            "📷 **Como publicar:**\n"
-            "Envie uma imagem neste canal.\n\n"
-            "❤️ Os membros poderão curtir.\n"
-            "💬 Os membros poderão comentar.\n\n"
-            f"👤 Ativado por {ctx.author.mention}"
-        ),
-        color=discord.Color.blurple()
-    )
-
-    embed.set_thumbnail(
-        url=ctx.guild.icon.url
-        if ctx.guild.icon
-        else discord.Embed.Empty
-    )
-
-    embed.set_footer(
-        text="T7 | Community • Instagram"
-    )
-
-    await ctx.send(
-        embed=embed
-    )
-
-
-# =========================================================
-# .EMBED
-# =========================================================
-
-class EmbedEditorView(discord.ui.View):
+class EmbedEditorView(
+    discord.ui.View
+):
 
     def __init__(self, autor):
 
@@ -1324,16 +1185,16 @@ class EmbedEditorView(discord.ui.View):
         self.autor = autor
 
         self.titulo = ""
-
         self.descricao = ""
-
         self.imagem = ""
-
         self.thumbnail = ""
 
-        self.cor = discord.Color.blurple()
+        self.cor = (
+            discord.Color.blurple()
+        )
 
         self.rodape = ""
+
 
     async def verificar_usuario(
         self,
@@ -1351,6 +1212,7 @@ class EmbedEditorView(discord.ui.View):
 
         return True
 
+
     def criar_embed(self):
 
         embed = discord.Embed(
@@ -1358,47 +1220,64 @@ class EmbedEditorView(discord.ui.View):
         )
 
         if self.titulo:
+
             embed.title = self.titulo
 
         if self.descricao:
-            embed.description = self.descricao
+
+            embed.description = (
+                self.descricao
+            )
 
         if self.imagem:
+
             embed.set_image(
                 url=self.imagem
             )
 
         if self.thumbnail:
+
             embed.set_thumbnail(
                 url=self.thumbnail
             )
 
         if self.rodape:
+
             embed.set_footer(
                 text=self.rodape
             )
 
         return embed
 
+
     def criar_painel(self):
 
         embed = discord.Embed(
+
             title="🎨 Editor de Embed",
+
             description=(
                 "Use os botões abaixo para montar seu Embed.\n\n"
+
                 f"**Título:** "
                 f"{self.titulo if self.titulo else 'Não definido'}\n"
+
                 f"**Descrição:** "
                 f"{'Definida' if self.descricao else 'Não definida'}\n"
+
                 f"**Imagem:** "
                 f"{'✅' if self.imagem else '❌'}\n"
+
                 f"**Thumbnail:** "
                 f"{'✅' if self.thumbnail else '❌'}\n"
+
                 f"**Cor:** "
                 f"`#{self.cor.value:06X}`\n"
+
                 f"**Rodapé:** "
                 f"{self.rodape if self.rodape else 'Não definido'}"
             ),
+
             color=self.cor
         )
 
@@ -1407,6 +1286,7 @@ class EmbedEditorView(discord.ui.View):
         )
 
         return embed
+
 
     @discord.ui.button(
         label="Título",
@@ -1431,6 +1311,7 @@ class EmbedEditorView(discord.ui.View):
             )
         )
 
+
     @discord.ui.button(
         label="Descrição",
         emoji="📝",
@@ -1453,6 +1334,7 @@ class EmbedEditorView(discord.ui.View):
                 self
             )
         )
+
 
     @discord.ui.button(
         label="Imagem",
@@ -1477,6 +1359,7 @@ class EmbedEditorView(discord.ui.View):
             )
         )
 
+
     @discord.ui.button(
         label="Thumbnail",
         emoji="🔹",
@@ -1499,6 +1382,7 @@ class EmbedEditorView(discord.ui.View):
                 self
             )
         )
+
 
     @discord.ui.button(
         label="Cor",
@@ -1523,6 +1407,7 @@ class EmbedEditorView(discord.ui.View):
             )
         )
 
+
     @discord.ui.button(
         label="Rodapé",
         emoji="👣",
@@ -1546,6 +1431,7 @@ class EmbedEditorView(discord.ui.View):
             )
         )
 
+
     @discord.ui.button(
         label="Pré-visualizar",
         emoji="👀",
@@ -1565,7 +1451,10 @@ class EmbedEditorView(discord.ui.View):
 
         embed = self.criar_embed()
 
-        if not self.titulo and not self.descricao:
+        if (
+            not self.titulo
+            and not self.descricao
+        ):
 
             embed.description = (
                 "⚠️ Seu Embed ainda está vazio."
@@ -1575,6 +1464,7 @@ class EmbedEditorView(discord.ui.View):
             embed=embed,
             ephemeral=True
         )
+
 
     @discord.ui.button(
         label="ENVIAR",
@@ -1593,7 +1483,10 @@ class EmbedEditorView(discord.ui.View):
         ):
             return
 
-        if not self.titulo and not self.descricao:
+        if (
+            not self.titulo
+            and not self.descricao
+        ):
 
             await interaction.response.send_message(
                 "❌ Adicione pelo menos um título ou uma descrição.",
@@ -1613,6 +1506,7 @@ class EmbedEditorView(discord.ui.View):
         )
 
         self.stop()
+
 
     @discord.ui.button(
         label="CANCELAR",
@@ -1640,7 +1534,9 @@ class EmbedEditorView(discord.ui.View):
         self.stop()
 
 
-class TituloModal(discord.ui.Modal):
+class TituloModal(
+    discord.ui.Modal
+):
 
     def __init__(self, editor):
 
@@ -1662,6 +1558,7 @@ class TituloModal(discord.ui.Modal):
             self.campo
         )
 
+
     async def on_submit(
         self,
         interaction
@@ -1677,7 +1574,9 @@ class TituloModal(discord.ui.Modal):
         )
 
 
-class DescricaoModal(discord.ui.Modal):
+class DescricaoModal(
+    discord.ui.Modal
+):
 
     def __init__(self, editor):
 
@@ -1700,6 +1599,7 @@ class DescricaoModal(discord.ui.Modal):
             self.campo
         )
 
+
     async def on_submit(
         self,
         interaction
@@ -1715,7 +1615,9 @@ class DescricaoModal(discord.ui.Modal):
         )
 
 
-class ImagemModal(discord.ui.Modal):
+class ImagemModal(
+    discord.ui.Modal
+):
 
     def __init__(self, editor):
 
@@ -1736,6 +1638,7 @@ class ImagemModal(discord.ui.Modal):
             self.campo
         )
 
+
     async def on_submit(
         self,
         interaction
@@ -1751,7 +1654,9 @@ class ImagemModal(discord.ui.Modal):
         )
 
 
-class ThumbnailModal(discord.ui.Modal):
+class ThumbnailModal(
+    discord.ui.Modal
+):
 
     def __init__(self, editor):
 
@@ -1772,6 +1677,7 @@ class ThumbnailModal(discord.ui.Modal):
             self.campo
         )
 
+
     async def on_submit(
         self,
         interaction
@@ -1787,7 +1693,9 @@ class ThumbnailModal(discord.ui.Modal):
         )
 
 
-class CorModal(discord.ui.Modal):
+class CorModal(
+    discord.ui.Modal
+):
 
     def __init__(self, editor):
 
@@ -1800,7 +1708,9 @@ class CorModal(discord.ui.Modal):
         self.campo = discord.ui.TextInput(
             label="Cor HEX",
             placeholder="#5865F2",
-            default=f"#{editor.cor.value:06X}",
+            default=(
+                f"#{editor.cor.value:06X}"
+            ),
             required=True,
             max_length=7
         )
@@ -1808,6 +1718,7 @@ class CorModal(discord.ui.Modal):
         self.add_item(
             self.campo
         )
+
 
     async def on_submit(
         self,
@@ -1828,10 +1739,11 @@ class CorModal(discord.ui.Modal):
             )
 
             if numero > 0xFFFFFF:
+
                 raise ValueError
 
-            self.editor.cor = discord.Color(
-                numero
+            self.editor.cor = (
+                discord.Color(numero)
             )
 
         except ValueError:
@@ -1849,7 +1761,9 @@ class CorModal(discord.ui.Modal):
         )
 
 
-class RodapeModal(discord.ui.Modal):
+class RodapeModal(
+    discord.ui.Modal
+):
 
     def __init__(self, editor):
 
@@ -1871,6 +1785,7 @@ class RodapeModal(discord.ui.Modal):
             self.campo
         )
 
+
     async def on_submit(
         self,
         interaction
@@ -1885,6 +1800,10 @@ class RodapeModal(discord.ui.Modal):
             view=self.editor
         )
 
+
+# =========================================================
+# .EMBED
+# =========================================================
 
 @bot.command(name="embed")
 @commands.has_permissions(
@@ -1947,8 +1866,7 @@ async def banner(
     if usuario.banner is None:
 
         await ctx.send(
-            f"❌ **{membro.display_name}** "
-            f"não possui um banner."
+            f"❌ **{membro.display_name}** não possui um banner."
         )
 
         return
@@ -2079,7 +1997,9 @@ async def ping(ctx):
 
     embed = discord.Embed(
         title="🏓 Pong!",
-        description=f"Latência: **{latencia}ms**",
+        description=(
+            f"Latência: **{latencia}ms**"
+        ),
         color=discord.Color.green()
     )
 
@@ -2097,25 +2017,29 @@ async def limpar_mensagens(ctx):
 
     usuario_id = ctx.author.id
 
-    permissoes = ctx.channel.permissions_for(
-        ctx.guild.me
+    permissoes = (
+        ctx.channel.permissions_for(
+            ctx.guild.me
+        )
     )
 
     if not permissoes.manage_messages:
 
         await ctx.send(
-            "❌ Eu preciso da permissão "
-            "**Gerenciar Mensagens** neste canal."
+            "❌ Eu preciso da permissão **Gerenciar Mensagens** neste canal."
         )
 
         return
 
-    agora = asyncio.get_running_loop().time()
+    agora = (
+        asyncio.get_running_loop().time()
+    )
 
     if usuario_id in cl_cooldown:
 
         restante = (
-            cl_cooldown[usuario_id] - agora
+            cl_cooldown[usuario_id]
+            - agora
         )
 
         if restante > 0:
@@ -2135,8 +2059,7 @@ async def limpar_mensagens(ctx):
             )
 
             await ctx.send(
-                f"⏳ {ctx.author.mention}, aguarde "
-                f"**{tempo}** para usar `.cl` novamente."
+                f"⏳ {ctx.author.mention}, aguarde **{tempo}** para usar `.cl` novamente."
             )
 
             return
@@ -2177,6 +2100,7 @@ async def limpar_mensagens(ctx):
                 usuario_id,
                 False
             ):
+
                 return
 
             if mensagem.author.id == usuario_id:
@@ -2206,14 +2130,17 @@ async def limpar_mensagens(ctx):
             usuario_id,
             False
         ):
+
             return
 
         try:
 
-            apagadas = await ctx.channel.purge(
-                limit=100,
-                check=verificar,
-                bulk=True
+            apagadas = (
+                await ctx.channel.purge(
+                    limit=100,
+                    check=verificar,
+                    bulk=True
+                )
             )
 
         except discord.HTTPException as erro:
@@ -2239,15 +2166,19 @@ async def limpar_mensagens(ctx):
                     usuario_id,
                     False
                 ):
+
                     return
 
-                apagadas = await ctx.channel.purge(
-                    limit=100,
-                    check=verificar,
-                    bulk=True
+                apagadas = (
+                    await ctx.channel.purge(
+                        limit=100,
+                        check=verificar,
+                        bulk=True
+                    )
                 )
 
             else:
+
                 raise
 
         total = len(
@@ -2276,8 +2207,7 @@ async def limpar_mensagens(ctx):
     except discord.Forbidden:
 
         await ctx.send(
-            "❌ Não tenho permissão "
-            "para apagar mensagens neste canal."
+            "❌ Não tenho permissão para apagar mensagens neste canal."
         )
 
     except discord.HTTPException as erro:
@@ -2287,8 +2217,7 @@ async def limpar_mensagens(ctx):
         )
 
         await ctx.send(
-            "❌ O Discord recusou a operação. "
-            "Tente novamente mais tarde."
+            "❌ O Discord recusou a operação. Tente novamente mais tarde."
         )
 
     except Exception as erro:
@@ -2373,8 +2302,7 @@ async def nuke(ctx):
     except discord.Forbidden:
 
         await ctx.send(
-            "❌ Preciso da permissão "
-            "**Gerenciar Canais**."
+            "❌ Preciso da permissão **Gerenciar Canais**."
         )
 
     except discord.HTTPException as erro:
@@ -2451,6 +2379,11 @@ async def rank(
         {}
     )
 
+
+    # -----------------------------------------------------
+    # RANK INDIVIDUAL
+    # -----------------------------------------------------
+
     if membro:
 
         user_id = str(
@@ -2470,7 +2403,10 @@ async def rank(
 
         posicao = 0
 
-        for i, (uid, quantidade) in enumerate(
+        for i, (
+            uid,
+            quantidade
+        ) in enumerate(
             lista,
             start=1
         ):
@@ -2507,10 +2443,7 @@ async def rank(
         )
 
         embed.set_footer(
-            text=(
-                "Ranking semanal • "
-                "Reset toda segunda às 00:00"
-            )
+            text="Ranking semanal • Reset toda segunda às 00:00"
         )
 
         await ctx.send(
@@ -2518,6 +2451,11 @@ async def rank(
         )
 
         return
+
+
+    # -----------------------------------------------------
+    # RANK GERAL
+    # -----------------------------------------------------
 
     lista = sorted(
         dados.items(),
@@ -2528,8 +2466,7 @@ async def rank(
     if not lista:
 
         await ctx.send(
-            "📊 Ainda não existem mensagens "
-            "registradas nesta semana."
+            "📊 Ainda não existem mensagens registradas nesta semana."
         )
 
         return
@@ -2562,26 +2499,21 @@ async def rank(
         if posicao == 1:
 
             medalha = "🥇"
-            destaque = " 👑"
 
         elif posicao == 2:
 
             medalha = "🥈"
-            destaque = ""
 
         elif posicao == 3:
 
             medalha = "🥉"
-            destaque = ""
 
         else:
 
             medalha = f"`#{posicao}`"
-            destaque = ""
 
         linhas.append(
-            f"{medalha} **{nome}**"
-            f"{destaque} — 💬 {quantidade}"
+            f"{medalha} **{nome}** — 💬 {quantidade}"
         )
 
     embed.description = (
@@ -2591,7 +2523,7 @@ async def rank(
     )
 
     embed.set_footer(
-        text="Top 10 • Destaques da semana"
+        text="Top 10 • Ranking semanal"
     )
 
     await ctx.send(
@@ -2603,7 +2535,9 @@ async def rank(
 # MENU ADD FIG
 # =========================================================
 
-class AddFigView(discord.ui.View):
+class AddFigView(
+    discord.ui.View
+):
 
     def __init__(self, autor):
 
@@ -2613,6 +2547,7 @@ class AddFigView(discord.ui.View):
 
         self.autor = autor
 
+
     async def verificar(
         self,
         interaction
@@ -2621,14 +2556,14 @@ class AddFigView(discord.ui.View):
         if interaction.user.id != self.autor.id:
 
             await interaction.response.send_message(
-                "❌ Apenas quem abriu o menu "
-                "pode usar estas opções.",
+                "❌ Apenas quem abriu o menu pode usar estas opções.",
                 ephemeral=True
             )
 
             return False
 
         return True
+
 
     @discord.ui.button(
         label="Adicionar por URL",
@@ -2644,11 +2579,13 @@ class AddFigView(discord.ui.View):
         if not await self.verificar(
             interaction
         ):
+
             return
 
         await interaction.response.send_modal(
             AddFigURLModal()
         )
+
 
     @discord.ui.button(
         label="Fechar",
@@ -2664,6 +2601,7 @@ class AddFigView(discord.ui.View):
         if not await self.verificar(
             interaction
         ):
+
             return
 
         await interaction.response.edit_message(
@@ -2675,7 +2613,9 @@ class AddFigView(discord.ui.View):
         self.stop()
 
 
-class AddFigURLModal(discord.ui.Modal):
+class AddFigURLModal(
+    discord.ui.Modal
+):
 
     def __init__(self):
 
@@ -2727,6 +2667,7 @@ class AddFigURLModal(discord.ui.Modal):
             self.emoji
         )
 
+
     async def on_submit(
         self,
         interaction
@@ -2750,8 +2691,7 @@ class AddFigURLModal(discord.ui.Modal):
         if not permissoes.manage_emojis:
 
             await interaction.response.send_message(
-                "❌ Eu preciso da permissão "
-                "**Gerenciar Expressões**.",
+                "❌ Eu preciso da permissão **Gerenciar Expressões**.",
                 ephemeral=True
             )
 
@@ -2782,19 +2722,25 @@ class AddFigURLModal(discord.ui.Modal):
                     dados = await resposta.read()
 
             arquivo = discord.File(
-                fp=io.BytesIO(dados),
+                fp=io.BytesIO(
+                    dados
+                ),
                 filename="figurinha.png"
             )
 
-            nova_fig = await guild.create_sticker(
-                name=self.nome.value,
-                description=(
-                    self.descricao.value
-                    or "Figurinha adicionada pelo bot"
-                ),
-                emoji=self.emoji.value,
-                file=arquivo,
-                reason=f"Adicionada por {interaction.user}"
+            nova_fig = (
+                await guild.create_sticker(
+                    name=self.nome.value,
+                    description=(
+                        self.descricao.value
+                        or "Figurinha adicionada pelo bot"
+                    ),
+                    emoji=self.emoji.value,
+                    file=arquivo,
+                    reason=(
+                        f"Adicionada por {interaction.user}"
+                    )
+                )
             )
 
             await interaction.followup.send(
@@ -2806,8 +2752,7 @@ class AddFigURLModal(discord.ui.Modal):
         except discord.Forbidden:
 
             await interaction.followup.send(
-                "❌ Não tenho permissão para adicionar "
-                "figurinhas neste servidor.",
+                "❌ Não tenho permissão para adicionar figurinhas neste servidor.",
                 ephemeral=True
             )
 
@@ -2847,12 +2792,15 @@ async def addfig(ctx):
 
     embed = discord.Embed(
         title="🖼️ Adicionar Figurinha",
+
         description=(
             "Use o menu abaixo para adicionar "
             "uma figurinha rapidamente.\n\n"
+
             "🔗 **Adicionar por URL**\n"
             "Informe a URL direta da imagem da figurinha."
         ),
+
         color=discord.Color.blurple()
     )
 
@@ -2880,10 +2828,11 @@ async def adicionar_emoji(
     if emoji is None:
 
         await ctx.send(
-            "❌ Você precisa informar "
-            "um emoji personalizado.\n\n"
+            "❌ Você precisa informar um emoji personalizado.\n\n"
+
             "**Exemplo:**\n"
             "`.addemoji <:emoji:123456789>`\n\n"
+
             "Animado:\n"
             "`.addemoji <a:emoji:123456789>`"
         )
@@ -2893,8 +2842,7 @@ async def adicionar_emoji(
     if ctx.guild is None:
 
         await ctx.send(
-            "❌ Este comando só pode ser usado "
-            "dentro de um servidor."
+            "❌ Este comando só pode ser usado dentro de um servidor."
         )
 
         return
@@ -2906,8 +2854,7 @@ async def adicionar_emoji(
     if not permissoes.manage_emojis:
 
         await ctx.send(
-            "❌ Eu não tenho a permissão "
-            "**Gerenciar Expressões**."
+            "❌ Eu não tenho a permissão **Gerenciar Expressões**."
         )
 
         return
@@ -2916,10 +2863,14 @@ async def adicionar_emoji(
 
         imagem = await emoji.read()
 
-        novo_emoji = await ctx.guild.create_custom_emoji(
-            name=emoji.name,
-            image=imagem,
-            reason=f"Adicionado por {ctx.author}"
+        novo_emoji = (
+            await ctx.guild.create_custom_emoji(
+                name=emoji.name,
+                image=imagem,
+                reason=(
+                    f"Adicionado por {ctx.author}"
+                )
+            )
         )
 
         await ctx.send(
@@ -2976,15 +2927,25 @@ async def bola_8(
         return
 
     respostas = [
+
         "🎱 Sim!",
+
         "🎱 Com certeza!",
+
         "🎱 Provavelmente.",
+
         "🎱 Talvez.",
+
         "🎱 Não.",
+
         "🎱 Acho que não.",
+
         "🎱 Definitivamente não.",
+
         "🎱 Não posso responder isso.",
+
         "🎱 O futuro dirá."
+
     ]
 
     embed = discord.Embed(
@@ -3019,13 +2980,30 @@ async def bola_8(
 async def ajuda(ctx):
 
     embed = discord.Embed(
+
         title="📚 Central de Comandos",
+
         description=(
             "Confira os comandos disponíveis "
             "no T7 | Community."
         ),
+
         color=discord.Color.blurple()
     )
+
+
+    embed.add_field(
+        name="📸 INSTAGRAM",
+        value=(
+            "`.post [legenda]` — Publica uma imagem "
+            "no Instagram do canal.\n"
+            "❤️ Curtir posts\n"
+            "💬 Comentar posts\n"
+            "💾 Posts salvos automaticamente"
+        ),
+        inline=False
+    )
+
 
     embed.add_field(
         name="🎨 EMBEDS",
@@ -3035,16 +3013,6 @@ async def ajuda(ctx):
         inline=False
     )
 
-    embed.add_field(
-        name="📸 INSTAGRAM",
-        value=(
-            "`.post` — Ativa o Instagram neste canal.\n"
-            "📷 Depois envie uma imagem para criar um post.\n"
-            "❤️ Curtir publicações.\n"
-            "💬 Comentar publicações."
-        ),
-        inline=False
-    )
 
     embed.add_field(
         name="👤 PERFIL",
@@ -3056,6 +3024,7 @@ async def ajuda(ctx):
         inline=False
     )
 
+
     embed.add_field(
         name="🏠 SERVIDOR",
         value=(
@@ -3064,6 +3033,7 @@ async def ajuda(ctx):
         ),
         inline=False
     )
+
 
     embed.add_field(
         name="🧹 MODERAÇÃO",
@@ -3075,6 +3045,7 @@ async def ajuda(ctx):
         inline=False
     )
 
+
     embed.add_field(
         name="💤 AFK",
         value=(
@@ -3084,17 +3055,18 @@ async def ajuda(ctx):
         inline=False
     )
 
+
     embed.add_field(
         name="🏆 RANK",
         value=(
             "`.rank` — Ranking semanal\n"
             "`.rank @usuário` — Rank individual\n"
             "🔄 Reset toda segunda às 00:00\n"
-            f"⭐ Top {TOP_LIMIT} = Destaque da semana\n"
-            "👑 Top 1 = Cargo automático"
+            f"🏆 Exibe o Top {TOP_LIMIT}"
         ),
         inline=False
     )
+
 
     embed.add_field(
         name="😀 EMOJIS / FIGURINHAS",
@@ -3105,13 +3077,16 @@ async def ajuda(ctx):
         inline=False
     )
 
+
     embed.add_field(
         name="🎱 DIVERSÃO",
         value=(
-            "`.8ball pergunta` — Pergunte à bola 8"
+            "`.8ball pergunta` — "
+            "Pergunte à bola 8"
         ),
         inline=False
     )
+
 
     embed.set_footer(
         text=f"Prefixo: {PREFIXO}"
@@ -3136,7 +3111,9 @@ async def on_command_error(
         error,
         commands.CommandNotFound
     ):
+
         return
+
 
     if isinstance(
         error,
@@ -3144,11 +3121,11 @@ async def on_command_error(
     ):
 
         await ctx.send(
-            "❌ Você não possui permissão "
-            "para usar este comando."
+            "❌ Você não possui permissão para usar este comando."
         )
 
         return
+
 
     if isinstance(
         error,
@@ -3161,6 +3138,7 @@ async def on_command_error(
 
         return
 
+
     if isinstance(
         error,
         commands.MemberNotFound
@@ -3172,17 +3150,18 @@ async def on_command_error(
 
         return
 
+
     if isinstance(
         error,
         commands.MissingRequiredArgument
     ):
 
         await ctx.send(
-            "❌ Está faltando um argumento "
-            "nesse comando."
+            "❌ Está faltando um argumento nesse comando."
         )
 
         return
+
 
     if isinstance(
         error,
@@ -3190,11 +3169,11 @@ async def on_command_error(
     ):
 
         await ctx.send(
-            "❌ Valor inválido. "
-            "Confira o formato do comando."
+            "❌ Valor inválido. Confira o formato do comando."
         )
 
         return
+
 
     print(
         f"⚠️ Erro: {error}"
