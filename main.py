@@ -189,32 +189,44 @@ def criar_embed_feed(post):
     )
 
     embed.set_author(
-        name=post.get(
-            "author_name",
-            "Usuário"
-        ),
-        icon_url=post.get(
-            "author_avatar"
-        )
+        name=post.get("author_name", "Usuário"),
+        icon_url=post.get("author_avatar")
     )
 
     embed.add_field(
         name="❤️ Curtidas",
-        value=(
-            f"**{len(post.get('likes', []))}**"
-        ),
+        value=f"**{len(post.get('likes', []))}**",
         inline=True
     )
 
     embed.add_field(
         name="💬 Comentários",
-        value=(
-            f"**{len(post.get('comments', []))}**"
-        ),
+        value=f"**{len(post.get('comments', []))}**",
         inline=True
     )
 
-    if post.get("media_type") == "video":
+    # =====================================================
+    # IMAGEM / GIF DENTRO DO EMBED
+    # =====================================================
+    if post.get("media_type") in ("image", "gif"):
+
+        # Durante a criação do post, usamos attachment://
+        if post.get("attachment_name"):
+            embed.set_image(
+                url=f"attachment://{post['attachment_name']}"
+            )
+
+        # Caso o post já exista e tenha uma URL salva
+        elif post.get("image_url"):
+            embed.set_image(
+                url=post["image_url"]
+            )
+
+    # =====================================================
+    # VÍDEO
+    # =====================================================
+    elif post.get("media_type") == "video":
+
         embed.add_field(
             name="🎥 Mídia",
             value="Vídeo",
@@ -623,6 +635,7 @@ async def on_message(message):
                     ),
                     "image_url": None,
                     "video_url": None,
+                    "attachment_name": nome_arquivo,
                     "media_type": (
                         "video"
                         if eh_video
