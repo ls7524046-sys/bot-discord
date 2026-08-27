@@ -572,7 +572,7 @@ async def on_message(message):
     user_id = str(message.author.id)
 
 
-    # -----------------------------------------------------
+       # -----------------------------------------------------
     # FEED — IMAGENS, GIFS E VÍDEOS
     # -----------------------------------------------------
     if (
@@ -599,30 +599,41 @@ async def on_message(message):
 
         for anexo in message.attachments:
             nome = anexo.filename.lower()
-
-            content_type = (
-                (anexo.content_type or "").lower()
-            )
+            tipo = (anexo.content_type or "").lower()
 
             eh_imagem = (
-                content_type.startswith("image/")
+                tipo.startswith("image/")
                 or nome.endswith(extensoes_imagem)
             )
 
             eh_video = (
-                content_type.startswith("video/")
+                tipo.startswith("video/")
                 or nome.endswith(extensoes_video)
             )
 
             if eh_imagem or eh_video:
-                midias.append(
-                    (anexo, eh_video)
-                )
+                midias.append((anexo, eh_video))
 
         if midias:
+
             for indice, (midia, eh_video) in enumerate(midias):
 
                 post_id = f"{message.id}_{indice}"
+
+                extensao = os.path.splitext(
+                    midia.filename
+                )[1].lower()
+
+                if eh_video:
+                    if extensao not in extensoes_video:
+                        extensao = ".mp4"
+                else:
+                    if extensao not in extensoes_imagem:
+                        extensao = ".png"
+
+                nome_arquivo = (
+                    f"feed_{post_id}{extensao}"
+                )
 
                 post = {
                     "id": post_id,
@@ -651,32 +662,12 @@ async def on_message(message):
                     # -----------------------------------------
                     # BAIXAR ARQUIVO
                     # -----------------------------------------
-                    dados_midia = await baixar_imagem(
+                    dados = await baixar_imagem(
                         midia.url
                     )
 
-                    extensao = os.path.splitext(
-                        midia.filename
-                    )[1].lower()
-
-                    if eh_video:
-                        extensoes_validas = extensoes_video
-                    else:
-                        extensoes_validas = extensoes_imagem
-
-                    if extensao not in extensoes_validas:
-                        extensao = (
-                            ".mp4"
-                            if eh_video
-                            else ".png"
-                        )
-
-                    nome_arquivo = (
-                        f"feed_{post_id}{extensao}"
-                    )
-
                     arquivo = discord.File(
-                        io.BytesIO(dados_midia),
+                        io.BytesIO(dados),
                         filename=nome_arquivo
                     )
 
@@ -685,30 +676,26 @@ async def on_message(message):
                     # -----------------------------------------
                     embed = criar_embed_feed(post)
 
-                    # Imagens/GIFs ficam DENTRO do Embed
+                    # Para imagens/GIFs:
+                    # coloca o anexo DENTRO do Embed.
                     if not eh_video:
                         embed.set_image(
                             url=f"attachment://{nome_arquivo}"
                         )
 
                     # -----------------------------------------
-                    # ENVIAR PUBLICAÇÃO
+                    # ENVIAR TUDO EM UMA ÚNICA MENSAGEM
                     # -----------------------------------------
-                    nova_mensagem = await (
-                        message.channel.send(
-                            content=None,
-                            file=arquivo,
-                            embed=embed,
-                            view=FeedView(post_id)
-                        )
+                    nova_mensagem = await message.channel.send(
+                        embed=embed,
+                        file=arquivo,
+                        view=FeedView(post_id)
                     )
 
-                    post["message_id"] = (
-                        nova_mensagem.id
-                    )
+                    post["message_id"] = nova_mensagem.id
 
                     # -----------------------------------------
-                    # SALVAR URL DO ANEXO
+                    # PEGAR URL REAL DO ANEXO
                     # -----------------------------------------
                     if nova_mensagem.attachments:
 
@@ -719,66 +706,38 @@ async def on_message(message):
                         )
 
                         if eh_video:
-                            post["video_url"] = (
-                                url_anexo
-                            )
+                            post["video_url"] = url_anexo
                         else:
-                            post["image_url"] = (
-                                url_anexo
-                            )
+                            post["image_url"] = url_anexo
 
+                    # -----------------------------------------
+                    # SALVAR PUBLICAÇÃO
+                    # -----------------------------------------
                     feed_posts.append(post)
 
                     salvar_feed()
 
-                    # -----------------------------------------
-                    # ATUALIZAR EMBED
-                    # -----------------------------------------
-                    if not eh_video:
-                        try:
-                            embed_final = (
-                                criar_embed_feed(post)
-                            )
-
-                            embed_final.set_image(
-                                url=(
-                                    f"attachment://"
-                                    f"{nome_arquivo}"
-                                )
-                            )
-
-                            await nova_mensagem.edit(
-                                embed=embed_final,
-                                view=FeedView(post_id)
-                            )
-
-                        except discord.HTTPException:
-                            pass
-
                 except aiohttp.ClientError as erro:
                     print(
-                        f"⚠️ Erro ao baixar mídia "
-                        f"do Feed: {erro}"
+                        f"⚠️ Erro ao baixar mídia do Feed: {erro}"
                     )
 
                 except discord.Forbidden:
                     print(
-                        "⚠️ Feed: sem permissão "
-                        "para enviar mensagens ou anexos."
+                        "⚠️ Feed: não tenho permissão "
+                        "para enviar a publicação."
                     )
                     return
 
                 except discord.HTTPException as erro:
                     print(
-                        f"⚠️ Erro ao criar publicação "
-                        f"do Feed: {erro}"
+                        f"⚠️ Erro HTTP no Feed: {erro}"
                     )
                     return
 
                 except Exception as erro:
                     print(
-                        f"⚠️ Erro inesperado no Feed: "
-                        f"{erro}"
+                        f"⚠️ Erro inesperado no Feed: {erro}"
                     )
 
             # -----------------------------------------
