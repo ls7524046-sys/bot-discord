@@ -180,7 +180,6 @@ def salvar_feed():
 
 
 def criar_embed_feed(post):
-   def criar_embed_feed(post):
     embed = discord.Embed(
         description=post.get("caption") or "",
         color=discord.Color.blurple(),
@@ -199,21 +198,6 @@ def criar_embed_feed(post):
         )
     )
 
-    # =====================================================
-    # IMAGEM / GIF DENTRO DO EMBED
-    # =====================================================
-
-    image_url = post.get("image_url")
-
-    if image_url:
-        embed.set_image(
-            url=image_url
-        )
-
-    # =====================================================
-    # CURTIDAS
-    # =====================================================
-
     embed.add_field(
         name="❤️ Curtidas",
         value=(
@@ -221,10 +205,6 @@ def criar_embed_feed(post):
         ),
         inline=True
     )
-
-    # =====================================================
-    # COMENTÁRIOS
-    # =====================================================
 
     embed.add_field(
         name="💬 Comentários",
@@ -234,20 +214,12 @@ def criar_embed_feed(post):
         inline=True
     )
 
-    # =====================================================
-    # VÍDEO
-    # =====================================================
-
     if post.get("media_type") == "video":
         embed.add_field(
             name="🎥 Mídia",
             value="Vídeo",
             inline=False
         )
-
-    # =====================================================
-    # RODAPÉ
-    # =====================================================
 
     embed.set_footer(
         text="Feed • T7 | Community"
@@ -259,7 +231,8 @@ def criar_embed_feed(post):
 def buscar_post(post_id):
     return next(
         (
-            post for post in feed_posts
+            post
+            for post in feed_posts
             if str(post.get("id")) == str(post_id)
         ),
         None
@@ -267,10 +240,16 @@ def buscar_post(post_id):
 
 
 async def baixar_imagem(url):
-    timeout = aiohttp.ClientTimeout(total=30)
+    timeout = aiohttp.ClientTimeout(
+        total=60
+    )
 
-    async with aiohttp.ClientSession(timeout=timeout) as session:
+    async with aiohttp.ClientSession(
+        timeout=timeout
+    ) as session:
+
         async with session.get(url) as resposta:
+
             if resposta.status != 200:
                 raise RuntimeError(
                     f"HTTP {resposta.status}"
