@@ -4,7 +4,6 @@ import asyncio
 import os
 import json
 import time
-import aiohttp
 import io
 
 from datetime import datetime
@@ -231,304 +230,246 @@ async def antes_do_rank_semanal():
 
 
 # =========================================================
-# INSTAGRAM — NOTIFICAÇÃO AUTOMÁTICA
+# FEED — ESTILO INSTAGRAM
 # =========================================================
 
-# Configure estas variáveis no Railway/ambiente:
-# INSTAGRAM_USER_ID   = ID da conta profissional do Instagram
-# INSTAGRAM_TOKEN     = Access Token do Instagram/Meta
-# INSTAGRAM_CHANNEL_ID = ID do canal do Discord que receberá os avisos
-#
-# Não coloque tokens diretamente no código.
-
-INSTAGRAM_USER_ID = os.environ.get(
-    "INSTAGRAM_USER_ID"
-)
-
-INSTAGRAM_TOKEN = os.environ.get(
-    "INSTAGRAM_TOKEN"
-)
-
+# Canal do Feed. Pode ser configurado no Railway como:
+# FEED_CHANNEL_ID=1541874711334617199
 try:
-    INSTAGRAM_CHANNEL_ID = int(
-        os.environ.get(
-            "INSTAGRAM_CHANNEL_ID",
-            "0"
-        )
+    FEED_CHANNEL_ID = int(
+        os.environ.get("FEED_CHANNEL_ID", "0")
     )
 except ValueError:
-    INSTAGRAM_CHANNEL_ID = 0
+    FEED_CHANNEL_ID = 0
 
-INSTAGRAM_STATE_FILE = "instagram_state.json"
-
-instagram_ultima_postagem = None
+FEED_FILE = "feed.json"
 
 
-def carregar_instagram_state():
-    dados = carregar_json(
-        INSTAGRAM_STATE_FILE
+def carregar_feed():
+    dados = carregar_json(FEED_FILE)
+
+    if isinstance(dados, list):
+        return dados
+
+    return []
+
+
+def salvar_feed(posts):
+    salvar_json(FEED_FILE, posts)
+
+
+feed_posts = carregar_feed()
+
+
+def criar_embed_feed(post):
+    embed = discord.Embed(
+        description=post.get("caption") or "",
+        color=discord.Color.blurple(),
+        timestamp=datetime.fromisoformat(
+            post["timestamp"]
+        )
     )
 
-    if isinstance(dados, dict):
-        return dados.get(
-            "ultima_postagem"
-        )
-
-    return None
-
-
-instagram_ultima_postagem = carregar_instagram_state()
-
-
-async def buscar_ultima_publicacao_instagram():
-    """
-    Consulta a publicação mais recente da conta configurada.
-    """
-
-    if not INSTAGRAM_USER_ID:
-        print(
-            "⚠️ INSTAGRAM_USER_ID não configurado."
-        )
-        return None
-
-    if not INSTAGRAM_TOKEN:
-        print(
-            "⚠️ INSTAGRAM_TOKEN não configurado."
-        )
-        return None
-
-    # Endpoint usado pelo sistema fornecido.
-    url = (
-        "https://graph.instagram.com/"
-        f"{INSTAGRAM_USER_ID}/media"
+    embed.set_author(
+        name=post["author_name"],
+        icon_url=post["author_avatar"]
     )
 
-    params = {
-        "fields": (
-            "id,caption,permalink,media_url,"
-            "media_type,timestamp"
-        ),
-        "access_token": INSTAGRAM_TOKEN,
-        "limit": 1
-    }
-
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                url,
-                params=params,
-                timeout=aiohttp.ClientTimeout(
-                    total=20
-                )
-            ) as response:
-
-                if response.status != 200:
-                    try:
-                        erro = await response.json()
-                    except Exception:
-                        erro = await response.text()
-
-                    print(
-                        "⚠️ Erro ao acessar o Instagram "
-                        f"(HTTP {response.status}): {erro}"
-                    )
-                    return None
-
-                dados = await response.json()
-
-    except asyncio.TimeoutError:
-        print(
-            "⚠️ Tempo esgotado ao consultar o Instagram."
-        )
-        return None
-
-    except aiohttp.ClientError as erro:
-        print(
-            f"⚠️ Erro de conexão com o Instagram: {erro}"
-        )
-        return None
-
-    except Exception as erro:
-        print(
-            f"⚠️ Erro inesperado ao consultar o Instagram: {erro}"
-        )
-        return None
-
-    posts = dados.get(
-        "data",
-        []
+    embed.set_image(
+        url=post["image_url"]
     )
 
-    if not posts:
-        return None
-
-    return posts[0]
-
-
-async def enviar_aviso_instagram(post):
-    """
-    Envia a nova publicação para o canal configurado.
-    """
-
-    if not INSTAGRAM_CHANNEL_ID:
-        print(
-            "⚠️ INSTAGRAM_CHANNEL_ID não configurado."
-        )
-        return
-
-    canal = bot.get_channel(
-        INSTAGRAM_CHANNEL_ID
+    embed.add_field(
+        name="❤️ Curtidas",
+        value=f"**{len(post.get('likes', []))}**",
+        inline=True
     )
 
-    if canal is None:
-        try:
-            canal = await bot.fetch_channel(
-                INSTAGRAM_CHANNEL_ID
-            )
-        except Exception as erro:
-            print(
-                "⚠️ Não consegui encontrar o canal "
-                f"do Instagram: {erro}"
+    embed.add_field(
+        name="💬 Comentários",
+        value=f"**{len(post.get('comments', []))}**",
+        inline=True
+    )
+
+    embed.set_footer(
+        text="Feed • T7 | Community"
+    )
+
+    return embed
+
+
+class ComentarioFeedModal(
+    discord.ui.Modal,
+    title="💬 Comentar publicação"
+):
+
+    comentario = discord.ui.TextInput(
+        label="Seu comentário",
+        placeholder="Digite seu comentário...",
+        style=discord.TextStyle.paragraph,
+        max_length=1000,
+        required=True
+    )
+
+    def __init__(self, post_id):
+        super().__init__()
+        self.post_id = post_id
+
+    async def on_submit(self, interaction):
+        post = next(
+            (
+                item for item in feed_posts
+                if str(item.get("id")) == str(self.post_id)
+            ),
+            None
+        )
+
+        if post is None:
+            await interaction.response.send_message(
+                "❌ Essa publicação não existe mais.",
+                ephemeral=True
             )
             return
 
-    permalink = post.get(
-        "permalink",
-        ""
-    )
+        post.setdefault("comments", []).append({
+            "user_id": interaction.user.id,
+            "user_name": interaction.user.display_name,
+            "text": self.comentario.value.strip(),
+            "timestamp": datetime.now(
+                TIMEZONE
+            ).isoformat()
+        })
 
-    legenda = post.get(
-        "caption",
-        ""
-    )
+        salvar_feed(feed_posts)
 
-    media_url = post.get(
-        "media_url"
-    )
-
-    embed = discord.Embed(
-        title="📸 Nova publicação no Instagram!",
-        description=(
-            f"**[Ver publicação no Instagram]({permalink})**"
-            if permalink
-            else "Nova publicação detectada."
-        ),
-        color=discord.Color.purple(),
-        timestamp=datetime.now(
-            TIMEZONE
-        )
-    )
-
-    if legenda:
-        if len(legenda) > 1024:
-            legenda = legenda[:1021] + "..."
-
-        embed.add_field(
-            name="📝 Legenda",
-            value=legenda,
-            inline=False
+        await interaction.response.send_message(
+            "✅ Comentário publicado!",
+            ephemeral=True
         )
 
-    # Mostra a imagem quando a API disponibilizar a URL.
-    if media_url:
-        embed.set_image(
-            url=media_url
-        )
-
-    embed.set_footer(
-        text="T7 | Community • Instagram"
-    )
-
-    try:
-        await canal.send(
-            embed=embed
-        )
-
-    except discord.Forbidden:
-        print(
-            "⚠️ Não tenho permissão para enviar "
-            "mensagens no canal do Instagram."
-        )
-
-    except discord.HTTPException as erro:
-        print(
-            f"⚠️ Erro ao enviar aviso do Instagram: {erro}"
-        )
-
-
-@tasks.loop(minutes=5)
-async def verificar_instagram():
-    """
-    Verifica o Instagram a cada 5 minutos.
-    """
-
-    global instagram_ultima_postagem
-
-    post = await buscar_ultima_publicacao_instagram()
-
-    if not post:
-        return
-
-    post_id = post.get(
-        "id"
-    )
-
-    if not post_id:
-        return
-
-    # Na primeira execução, apenas registra a postagem atual.
-    # Assim o bot não envia uma publicação antiga ao iniciar.
-    if instagram_ultima_postagem is None:
-        instagram_ultima_postagem = str(
-            post_id
-        )
-
-        salvar_json(
-            INSTAGRAM_STATE_FILE,
-            {
-                "ultima_postagem": (
-                    instagram_ultima_postagem
-                )
-            }
-        )
-
-        print(
-            "📸 Instagram sincronizado. "
-            "Nenhuma notificação enviada na primeira leitura."
-        )
-
-        return
-
-    if str(post_id) == str(
-        instagram_ultima_postagem
-    ):
-        return
-
-    instagram_ultima_postagem = str(
-        post_id
-    )
-
-    salvar_json(
-        INSTAGRAM_STATE_FILE,
-        {
-            "ultima_postagem": (
-                instagram_ultima_postagem
+        try:
+            await interaction.message.edit(
+                embed=criar_embed_feed(post),
+                view=FeedView(post["id"])
             )
-        }
+        except discord.HTTPException:
+            pass
+
+
+class FeedView(discord.ui.View):
+
+    def __init__(self, post_id):
+        super().__init__(timeout=None)
+        self.post_id = post_id
+
+    @discord.ui.button(
+        label="Curtir",
+        emoji="❤️",
+        style=discord.ButtonStyle.danger
     )
+    async def curtir(self, interaction, button):
+        post = next(
+            (
+                item for item in feed_posts
+                if str(item.get("id")) == str(self.post_id)
+            ),
+            None
+        )
 
-    print(
-        f"📸 Nova publicação encontrada: {post_id}"
+        if post is None:
+            await interaction.response.send_message(
+                "❌ Essa publicação não existe mais.",
+                ephemeral=True
+            )
+            return
+
+        post.setdefault("likes", [])
+        user_id = interaction.user.id
+
+        if user_id in post["likes"]:
+            post["likes"].remove(user_id)
+            mensagem = "💔 Você removeu sua curtida."
+        else:
+            post["likes"].append(user_id)
+            mensagem = "❤️ Você curtiu a publicação!"
+
+        salvar_feed(feed_posts)
+
+        await interaction.response.edit_message(
+            embed=criar_embed_feed(post),
+            view=FeedView(post["id"])
+        )
+
+        await interaction.followup.send(
+            mensagem,
+            ephemeral=True
+        )
+
+    @discord.ui.button(
+        label="Comentar",
+        emoji="💬",
+        style=discord.ButtonStyle.primary
     )
+    async def comentar(self, interaction, button):
+        await interaction.response.send_modal(
+            ComentarioFeedModal(self.post_id)
+        )
 
-    await enviar_aviso_instagram(
-        post
+
+async def registrar_views_feed():
+    """
+    Reativa os botões das publicações antigas depois que o bot reinicia.
+    """
+    for post in feed_posts:
+        message_id = post.get("message_id")
+
+        if not message_id:
+            continue
+
+        try:
+            bot.add_view(
+                FeedView(post["id"]),
+                message_id=int(message_id)
+            )
+        except Exception as erro:
+            print(
+                f"⚠️ Erro ao registrar View do Feed: {erro}"
+            )
+
+
+@bot.command(name="feed")
+async def configurar_feed(ctx):
+    """
+    Mostra/configura o canal atual como canal do Feed.
+
+    Se FEED_CHANNEL_ID estiver configurado no Railway, ele continua
+    sendo usado como prioridade.
+    """
+    global FEED_CHANNEL_ID
+
+    if FEED_CHANNEL_ID:
+        canal = bot.get_channel(FEED_CHANNEL_ID)
+
+        if canal is None:
+            try:
+                canal = await bot.fetch_channel(FEED_CHANNEL_ID)
+            except discord.HTTPException:
+                canal = None
+
+        if canal:
+            await ctx.send(
+                f"📸 O Feed está configurado no canal "
+                f"{canal.mention}."
+            )
+            return
+
+    FEED_CHANNEL_ID = ctx.channel.id
+
+    await ctx.send(
+        f"✅ Este canal ({ctx.channel.mention}) agora é o canal do Feed.\n\n"
+        "🖼️ Envie uma imagem aqui para criar uma publicação.\n"
+        "❤️ Curtir e 💬 comentar ficam disponíveis no post."
     )
-
-
-@verificar_instagram.before_loop
-async def antes_do_instagram():
-    await bot.wait_until_ready()
 
 
 # =========================================================
@@ -554,9 +495,15 @@ async def on_ready():
         f"📌 Prefixo: {PREFIXO}"
     )
 
-    print(
-        "📸 Instagram: verificação automática a cada 5 minutos"
-    )
+    if FEED_CHANNEL_ID:
+        print(
+            f"📸 Feed ativo no canal: {FEED_CHANNEL_ID}"
+        )
+    else:
+        print(
+            "⚠️ FEED_CHANNEL_ID não configurado. "
+            "Use .feed no canal desejado."
+        )
 
     print("=" * 50)
 
@@ -569,9 +516,7 @@ async def on_ready():
         tarefa_rank_semanal.start()
 
 
-    if not verificar_instagram.is_running():
-
-        verificar_instagram.start()
+    await registrar_views_feed()
 
 
     # -----------------------------------------------------
@@ -660,6 +605,95 @@ async def on_message(message):
     user_id = str(
         message.author.id
     )
+
+
+    # =====================================================
+    # FEED
+    # =====================================================
+
+    if (
+        message.guild
+        and FEED_CHANNEL_ID
+        and message.channel.id == FEED_CHANNEL_ID
+    ):
+        imagens = [
+            anexo for anexo in message.attachments
+            if (
+                (
+                    anexo.content_type
+                    and anexo.content_type.startswith("image/")
+                )
+                or anexo.filename.lower().endswith(
+                    (
+                        ".png",
+                        ".jpg",
+                        ".jpeg",
+                        ".gif",
+                        ".webp"
+                    )
+                )
+            )
+        ]
+
+        if imagens:
+            for indice, imagem in enumerate(imagens):
+                # Usa timestamp + índice para evitar IDs iguais
+                # quando várias imagens são enviadas juntas.
+                post_id = (
+                    f"{message.id}_{indice}"
+                )
+
+                post = {
+                    "id": post_id,
+                    "author_id": message.author.id,
+                    "author_name": message.author.display_name,
+                    "author_avatar": str(
+                        message.author.display_avatar.url
+                    ),
+                    "image_url": imagem.url,
+                    "caption": message.content.strip(),
+                    "likes": [],
+                    "comments": [],
+                    "timestamp": datetime.now(
+                        TIMEZONE
+                    ).isoformat(),
+                    "message_id": None
+                }
+
+                try:
+                    nova_mensagem = await message.channel.send(
+                        embed=criar_embed_feed(post),
+                        view=FeedView(post_id)
+                    )
+
+                    post["message_id"] = nova_mensagem.id
+                    feed_posts.append(post)
+                    salvar_feed(feed_posts)
+
+                except discord.Forbidden:
+                    print(
+                        "⚠️ Feed: sem permissão para enviar "
+                        "mensagens ou incorporar links."
+                    )
+                    return
+
+                except discord.HTTPException as erro:
+                    print(
+                        f"⚠️ Erro ao criar publicação do Feed: {erro}"
+                    )
+                    return
+
+            try:
+                await message.delete()
+            except discord.Forbidden:
+                print(
+                    "⚠️ Feed: não tenho permissão para apagar "
+                    "a mensagem original."
+                )
+            except discord.HTTPException:
+                pass
+
+            return
 
 
     # =====================================================
@@ -2618,13 +2652,13 @@ async def ajuda(ctx):
 
 
     embed.add_field(
-        name="📸 INSTAGRAM",
+        name="📸 FEED",
         value=(
-            "📸 O bot verifica o Instagram "
-            "automaticamente a cada 5 minutos.\n"
-            "🔔 Novas publicações são enviadas "
-            "para o canal configurado.\n"
-            "🔗 O aviso contém o link da publicação."
+            "`.feed` — configura/mostra o canal do Feed.\n"
+            "🖼️ Envie uma imagem no canal do Feed para publicar.\n"
+            "❤️ Curtir publicações.\n"
+            "💬 Comentar publicações.\n"
+            "💾 Publicações ficam salvas após reiniciar o bot."
         ),
         inline=False
     )
