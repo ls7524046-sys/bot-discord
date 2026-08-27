@@ -551,11 +551,15 @@ async def on_message(message):
                 )
                 or anexo.filename.lower().endswith(
                     (
-                        ".png",
-                        ".jpg",
-                        ".jpeg",
-                        ".gif",
-                        ".webp"
+                ".png",
+                ".jpg",
+                ".jpeg",
+                ".gif",
+                ".webp",
+                ".mp4",
+                ".mov",
+                ".webm",
+                ".mkv"
                     )
                 )
             )
