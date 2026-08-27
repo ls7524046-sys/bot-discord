@@ -524,43 +524,26 @@ async def on_message(message):
     if message.author.bot:
         return
 
-    guild_id = (
-        str(message.guild.id)
-        if message.guild
-        else None
-    )
-
+    guild_id = str(message.guild.id) if message.guild else None
     user_id = str(message.author.id)
 
     # -----------------------------------------------------
     # FEED
     # -----------------------------------------------------
-
     if (
         message.guild
         and FEED_CHANNEL_ID
         and message.channel.id == FEED_CHANNEL_ID
     ):
         imagens = [
-            anexo
-            for anexo in message.attachments
+            anexo for anexo in message.attachments
             if (
                 (
                     anexo.content_type
                     and anexo.content_type.startswith("image/")
                 )
                 or anexo.filename.lower().endswith(
-                    (
-                ".png",
-                ".jpg",
-                ".jpeg",
-                ".gif",
-                ".webp",
-                ".mp4",
-                ".mov",
-                ".webm",
-                ".mkv"
-                    )
+                    (".png", ".jpg", ".jpeg", ".gif", ".webp")
                 )
             )
         ]
@@ -568,58 +551,33 @@ async def on_message(message):
         if imagens:
             for indice, imagem in enumerate(imagens):
                 post_id = f"{message.id}_{indice}"
-
                 post = {
                     "id": post_id,
                     "author_id": message.author.id,
                     "author_name": message.author.display_name,
-                    "author_avatar": str(
-                        message.author.display_avatar.url
-                    ),
+                    "author_avatar": str(message.author.display_avatar.url),
                     "image_url": None,
                     "caption": message.content.strip(),
                     "likes": [],
                     "comments": [],
-                    "timestamp": datetime.now(
-                        TIMEZONE
-                    ).isoformat(),
+                    "timestamp": datetime.now(TIMEZONE).isoformat(),
                     "message_id": None
                 }
 
                 try:
-                    # Baixa a imagem enviada pelo usuário.
-                    dados_imagem = await baixar_imagem(
-                        imagem.url
-                    )
-
-                    extensao = os.path.splitext(
-                        imagem.filename
-                    )[1].lower()
-
-                    if extensao not in (
-                        ".png",
-                        ".jpg",
-                        ".jpeg",
-                        ".gif",
-                        ".webp"
-                    ):
+                    dados_imagem = await baixar_imagem(imagem.url)
+                    extensao = os.path.splitext(imagem.filename)[1].lower()
+                    if extensao not in (".png", ".jpg", ".jpeg", ".gif", ".webp"):
                         extensao = ".png"
 
-                    nome_arquivo = (
-                        f"feed_{post_id}{extensao}"
-                    )
-
+                    nome_arquivo = f"feed_{post_id}{extensao}"
                     arquivo = discord.File(
                         io.BytesIO(dados_imagem),
                         filename=nome_arquivo
                     )
 
-                    # A imagem é reenviada como anexo.
-                    # O Embed usa attachment:// para mostrar a imagem.
                     embed = criar_embed_feed(post)
-                    embed.set_image(
-                        url=f"attachment://{nome_arquivo}"
-                    )
+                    embed.set_image(url=f"attachment://{nome_arquivo}")
 
                     nova_mensagem = await message.channel.send(
                         file=arquivo,
@@ -628,18 +586,12 @@ async def on_message(message):
                     )
 
                     post["message_id"] = nova_mensagem.id
-
-                    # Guarda a URL CDN do anexo criado pelo bot.
                     if nova_mensagem.attachments:
-                        post["image_url"] = (
-                            nova_mensagem.attachments[0].url
-                        )
+                        post["image_url"] = nova_mensagem.attachments[0].url
 
                     feed_posts.append(post)
                     salvar_feed()
 
-                    # Depois que o anexo foi enviado, atualiza o Embed
-                    # para usar a URL persistida do Discord.
                     try:
                         await nova_mensagem.edit(
                             embed=criar_embed_feed(post),
@@ -649,35 +601,20 @@ async def on_message(message):
                         pass
 
                 except aiohttp.ClientError as erro:
-                    print(
-                        f"⚠️ Erro ao baixar imagem do Feed: {erro}"
-                    )
-
+                    print(f"⚠️ Erro ao baixar imagem do Feed: {erro}")
                 except discord.Forbidden:
-                    print(
-                        "⚠️ Feed: sem permissão para enviar "
-                        "mensagens ou anexos."
-                    )
+                    print("⚠️ Feed: sem permissão para enviar mensagens ou anexos.")
                     return
-
                 except discord.HTTPException as erro:
-                    print(
-                        f"⚠️ Erro ao criar publicação do Feed: {erro}"
-                    )
+                    print(f"⚠️ Erro ao criar publicação do Feed: {erro}")
                     return
-
                 except Exception as erro:
-                    print(
-                        f"⚠️ Erro inesperado no Feed: {erro}"
-                    )
+                    print(f"⚠️ Erro inesperado no Feed: {erro}")
 
             try:
                 await message.delete()
             except discord.Forbidden:
-                print(
-                    "⚠️ Feed: não tenho permissão para apagar "
-                    "a mensagem original."
-                )
+                print("⚠️ Feed: não tenho permissão para apagar a mensagem original.")
             except discord.HTTPException:
                 pass
 
@@ -686,96 +623,26 @@ async def on_message(message):
     # -----------------------------------------------------
     # RANK
     # -----------------------------------------------------
-
     if guild_id:
         await verificar_e_resetar_semana()
 
-        rank_mensagens.setdefault(
-            guild_id,
-            {}
-        )
-
-        rank_mensagens[guild_id].setdefault(
-            user_id,
-            0
-        )
-
+        rank_mensagens.setdefault(guild_id, {})
+        rank_mensagens[guild_id].setdefault(user_id, 0)
         rank_mensagens[guild_id][user_id] += 1
 
-        salvar_json(
-            RANK_FILE,
-            rank_mensagens
-        )
+        salvar_json(RANK_FILE, rank_mensagens)
 
     # -----------------------------------------------------
     # REMOVE AFK
     # -----------------------------------------------------
-
     if guild_id:
-        chave_afk = (
-            f"{guild_id}_{user_id}"
-        )
+        chave_afk = f"{guild_id}_{user_id}"
 
         if chave_afk in afk_usuarios:
             del afk_usuarios[chave_afk]
-
-            salvar_json(
-                AFK_FILE,
-                afk_usuarios
-            )
-
-            try:
-                aviso = await message.channel.send(
-                    f"👋 Bem-vindo de volta, "
-                    f"{message.author.mention}!\n"
-                    "Seu AFK foi removido."
-                )
-
-                await asyncio.sleep(5)
-
-                try:
-                    await aviso.delete()
-                except discord.HTTPException:
-                    pass
-
-            except discord.HTTPException:
-                pass
-
-    # -----------------------------------------------------
-    # AVISA USUÁRIO AFK
-    # -----------------------------------------------------
-
-    if guild_id:
-        for membro in message.mentions:
-            chave_mencionado = (
-                f"{guild_id}_{membro.id}"
-            )
-
-            if chave_mencionado in afk_usuarios:
-                dados = afk_usuarios[chave_mencionado]
-
-                motivo = dados.get(
-                    "motivo",
-                    "AFK"
-                )
-
-                desde = dados.get(
-                    "desde",
-                    int(time.time())
-                )
-
-                await message.channel.send(
-                    f"💤 **{membro.display_name}** está AFK.\n"
-                    f"📝 Motivo: **{motivo}**\n"
-                    f"⏰ Desde: <t:{desde}:R>"
-                )
+            salvar_json(AFK_FILE, afk_usuarios)
 
     await bot.process_commands(message)
-
-
-# =========================================================
-# EDITOR DE EMBED
-# =========================================================
 
 class EmbedEditorView(discord.ui.View):
     def __init__(self, autor):
