@@ -180,34 +180,78 @@ def salvar_feed():
 
 
 def criar_embed_feed(post):
+   def criar_embed_feed(post):
     embed = discord.Embed(
         description=post.get("caption") or "",
         color=discord.Color.blurple(),
-        timestamp=datetime.fromisoformat(post["timestamp"])
+        timestamp=datetime.fromisoformat(
+            post["timestamp"]
+        )
     )
 
     embed.set_author(
-        name=post.get("author_name", "Usuário"),
-        icon_url=post.get("author_avatar")
+        name=post.get(
+            "author_name",
+            "Usuário"
+        ),
+        icon_url=post.get(
+            "author_avatar"
+        )
     )
 
+    # =====================================================
+    # IMAGEM / GIF DENTRO DO EMBED
+    # =====================================================
+
     image_url = post.get("image_url")
+
     if image_url:
-        embed.set_image(url=image_url)
+        embed.set_image(
+            url=image_url
+        )
+
+    # =====================================================
+    # CURTIDAS
+    # =====================================================
 
     embed.add_field(
         name="❤️ Curtidas",
-        value=f"**{len(post.get('likes', []))}**",
+        value=(
+            f"**{len(post.get('likes', []))}**"
+        ),
         inline=True
     )
+
+    # =====================================================
+    # COMENTÁRIOS
+    # =====================================================
 
     embed.add_field(
         name="💬 Comentários",
-        value=f"**{len(post.get('comments', []))}**",
+        value=(
+            f"**{len(post.get('comments', []))}**"
+        ),
         inline=True
     )
 
-    embed.set_footer(text="Feed • T7 | Community")
+    # =====================================================
+    # VÍDEO
+    # =====================================================
+
+    if post.get("media_type") == "video":
+        embed.add_field(
+            name="🎥 Mídia",
+            value="Vídeo",
+            inline=False
+        )
+
+    # =====================================================
+    # RODAPÉ
+    # =====================================================
+
+    embed.set_footer(
+        text="Feed • T7 | Community"
+    )
 
     return embed
 
@@ -527,94 +571,228 @@ async def on_message(message):
     guild_id = str(message.guild.id) if message.guild else None
     user_id = str(message.author.id)
 
+
     # -----------------------------------------------------
-    # FEED
+    # FEED — IMAGENS, GIFS E VÍDEOS
     # -----------------------------------------------------
     if (
         message.guild
         and FEED_CHANNEL_ID
         and message.channel.id == FEED_CHANNEL_ID
     ):
-        imagens = [
-            anexo for anexo in message.attachments
-            if (
-                (
-                    anexo.content_type
-                    and anexo.content_type.startswith("image/")
-                )
-                or anexo.filename.lower().endswith(
-                    (".png", ".jpg", ".jpeg", ".gif", ".webp")
-                )
-            )
-        ]
+        extensoes_imagem = (
+            ".png",
+            ".jpg",
+            ".jpeg",
+            ".gif",
+            ".webp"
+        )
 
-        if imagens:
-            for indice, imagem in enumerate(imagens):
+        extensoes_video = (
+            ".mp4",
+            ".mov",
+            ".webm",
+            ".m4v"
+        )
+
+        midias = []
+
+        for anexo in message.attachments:
+            nome = anexo.filename.lower()
+
+            content_type = (
+                (anexo.content_type or "").lower()
+            )
+
+            eh_imagem = (
+                content_type.startswith("image/")
+                or nome.endswith(extensoes_imagem)
+            )
+
+            eh_video = (
+                content_type.startswith("video/")
+                or nome.endswith(extensoes_video)
+            )
+
+            if eh_imagem or eh_video:
+                midias.append(
+                    (anexo, eh_video)
+                )
+
+        if midias:
+            for indice, (midia, eh_video) in enumerate(midias):
+
                 post_id = f"{message.id}_{indice}"
+
                 post = {
                     "id": post_id,
                     "author_id": message.author.id,
                     "author_name": message.author.display_name,
-                    "author_avatar": str(message.author.display_avatar.url),
+                    "author_avatar": str(
+                        message.author.display_avatar.url
+                    ),
                     "image_url": None,
+                    "video_url": None,
+                    "media_type": (
+                        "video"
+                        if eh_video
+                        else "image"
+                    ),
                     "caption": message.content.strip(),
                     "likes": [],
                     "comments": [],
-                    "timestamp": datetime.now(TIMEZONE).isoformat(),
+                    "timestamp": datetime.now(
+                        TIMEZONE
+                    ).isoformat(),
                     "message_id": None
                 }
 
                 try:
-                    dados_imagem = await baixar_imagem(imagem.url)
-                    extensao = os.path.splitext(imagem.filename)[1].lower()
-                    if extensao not in (".png", ".jpg", ".jpeg", ".gif", ".webp"):
-                        extensao = ".png"
+                    # -----------------------------------------
+                    # BAIXAR ARQUIVO
+                    # -----------------------------------------
+                    dados_midia = await baixar_imagem(
+                        midia.url
+                    )
 
-                    nome_arquivo = f"feed_{post_id}{extensao}"
+                    extensao = os.path.splitext(
+                        midia.filename
+                    )[1].lower()
+
+                    if eh_video:
+                        extensoes_validas = extensoes_video
+                    else:
+                        extensoes_validas = extensoes_imagem
+
+                    if extensao not in extensoes_validas:
+                        extensao = (
+                            ".mp4"
+                            if eh_video
+                            else ".png"
+                        )
+
+                    nome_arquivo = (
+                        f"feed_{post_id}{extensao}"
+                    )
+
                     arquivo = discord.File(
-                        io.BytesIO(dados_imagem),
+                        io.BytesIO(dados_midia),
                         filename=nome_arquivo
                     )
 
+                    # -----------------------------------------
+                    # CRIAR EMBED
+                    # -----------------------------------------
                     embed = criar_embed_feed(post)
-                    embed.set_image(url=f"attachment://{nome_arquivo}")
 
-                    nova_mensagem = await message.channel.send(
-                        file=arquivo,
-                        embed=embed,
-                        view=FeedView(post_id)
-                    )
+                    # Imagens/GIFs ficam DENTRO do Embed
+                    if not eh_video:
+                        embed.set_image(
+                            url=f"attachment://{nome_arquivo}"
+                        )
 
-                    post["message_id"] = nova_mensagem.id
-                    if nova_mensagem.attachments:
-                        post["image_url"] = nova_mensagem.attachments[0].url
-
-                    feed_posts.append(post)
-                    salvar_feed()
-
-                    try:
-                        await nova_mensagem.edit(
-                            embed=criar_embed_feed(post),
+                    # -----------------------------------------
+                    # ENVIAR PUBLICAÇÃO
+                    # -----------------------------------------
+                    nova_mensagem = await (
+                        message.channel.send(
+                            content=None,
+                            file=arquivo,
+                            embed=embed,
                             view=FeedView(post_id)
                         )
-                    except discord.HTTPException:
-                        pass
+                    )
+
+                    post["message_id"] = (
+                        nova_mensagem.id
+                    )
+
+                    # -----------------------------------------
+                    # SALVAR URL DO ANEXO
+                    # -----------------------------------------
+                    if nova_mensagem.attachments:
+
+                        url_anexo = (
+                            nova_mensagem
+                            .attachments[0]
+                            .url
+                        )
+
+                        if eh_video:
+                            post["video_url"] = (
+                                url_anexo
+                            )
+                        else:
+                            post["image_url"] = (
+                                url_anexo
+                            )
+
+                    feed_posts.append(post)
+
+                    salvar_feed()
+
+                    # -----------------------------------------
+                    # ATUALIZAR EMBED
+                    # -----------------------------------------
+                    if not eh_video:
+                        try:
+                            embed_final = (
+                                criar_embed_feed(post)
+                            )
+
+                            embed_final.set_image(
+                                url=(
+                                    f"attachment://"
+                                    f"{nome_arquivo}"
+                                )
+                            )
+
+                            await nova_mensagem.edit(
+                                embed=embed_final,
+                                view=FeedView(post_id)
+                            )
+
+                        except discord.HTTPException:
+                            pass
 
                 except aiohttp.ClientError as erro:
-                    print(f"⚠️ Erro ao baixar imagem do Feed: {erro}")
-                except discord.Forbidden:
-                    print("⚠️ Feed: sem permissão para enviar mensagens ou anexos.")
-                    return
-                except discord.HTTPException as erro:
-                    print(f"⚠️ Erro ao criar publicação do Feed: {erro}")
-                    return
-                except Exception as erro:
-                    print(f"⚠️ Erro inesperado no Feed: {erro}")
+                    print(
+                        f"⚠️ Erro ao baixar mídia "
+                        f"do Feed: {erro}"
+                    )
 
+                except discord.Forbidden:
+                    print(
+                        "⚠️ Feed: sem permissão "
+                        "para enviar mensagens ou anexos."
+                    )
+                    return
+
+                except discord.HTTPException as erro:
+                    print(
+                        f"⚠️ Erro ao criar publicação "
+                        f"do Feed: {erro}"
+                    )
+                    return
+
+                except Exception as erro:
+                    print(
+                        f"⚠️ Erro inesperado no Feed: "
+                        f"{erro}"
+                    )
+
+            # -----------------------------------------
+            # APAGAR MENSAGEM ORIGINAL
+            # -----------------------------------------
             try:
                 await message.delete()
+
             except discord.Forbidden:
-                print("⚠️ Feed: não tenho permissão para apagar a mensagem original.")
+                print(
+                    "⚠️ Feed: não tenho permissão "
+                    "para apagar a mensagem original."
+                )
+
             except discord.HTTPException:
                 pass
 
