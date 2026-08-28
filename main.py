@@ -1,6 +1,4 @@
-from pathlib import Path
-
-code = r'''import discord
+import discord
 import random
 import asyncio
 import os
@@ -2292,9 +2290,3 @@ if not TOKEN:
     print("❌ ERRO: DISCORD_TOKEN não foi encontrado.")
 else:
     bot.run(TOKEN)
-'''
-
-path = Path("/mnt/data/main.py")
-path.write_text(code, encoding="utf-8")
-print(f"Arquivo criado: {path}")
-print(f"Tamanho: {path.stat().st_size} bytes")
